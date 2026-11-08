@@ -1,0 +1,398 @@
+generator client {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "linux-musl-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  EMPLOYER
+  RECRUITER
+  HIRING_MANAGER
+  CANDIDATE
+}
+
+enum JobStatus {
+  DRAFT
+  PUBLISHED
+  PAUSED
+  CLOSED
+}
+
+enum StageCategory {
+  ACTIVE
+  HIRED
+  REJECTED
+}
+
+enum AppStatus {
+  ACTIVE
+  HIRED
+  REJECTED
+  WITHDRAWN
+}
+
+enum ApprovalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum InterviewStatus {
+  SCHEDULED
+  COMPLETED
+  CANCELLED
+}
+
+enum DataRequestType {
+  EXPORT
+  DELETE
+}
+
+enum DataRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  COMPLETED
+}
+
+model Organization {
+  id            String          @id @default(cuid())
+  name          String
+  retentionDays Int             @default(180)
+  users         User[]
+  jobs          Job[]
+  templates     EmailTemplate[]
+  createdAt     DateTime        @default(now())
+}
+
+model User {
+  id           String            @id @default(cuid())
+  orgId        String?
+  org          Organization?     @relation(fields: [orgId], references: [id])
+  email        String            @unique
+  passwordHash String
+  name         String
+  role         Role
+  isActive     Boolean           @default(true)
+  createdAt    DateTime          @default(now())
+  profile      CandidateProfile?
+  consents     Consent[]
+  managedJobs  Job[]             @relation("HiringManager")
+  createdJobs  Job[]             @relation("JobCreator")
+  panels       InterviewPanel[]
+  scorecards   Scorecard[]
+  transitions  StageTransition[]
+  notifications Notification[]
+  dataRequests DataRequest[]     @relation("Requester")
+}
+
+model CandidateProfile {
+  id              String        @id @default(cuid())
+  userId          String        @unique
+  user            User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  phone           String?
+  location        String?
+  linkedin        String?
+  headline        String?
+  skills          String[]
+  experienceYears Int?
+  anonymizedAt    DateTime?
+  resumes         Resume[]
+  applications    Application[]
+}
+
+model Resume {
+  id           String           @id @default(cuid())
+  candidateId  String
+  candidate    CandidateProfile @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+  fileKey      String
+  fileName     String
+  mimeType     String
+  size         Int
+  uploadedAt   DateTime         @default(now())
+  applications Application[]
+
+  @@index([candidateId])
+}
+
+model Consent {
+  id            String    @id @default(cuid())
+  userId        String
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type          String // e.g. DATA_PROCESSING, TALENT_POOL
+  policyVersion String
+  granted       Boolean
+  ip            String?
+  createdAt     DateTime  @default(now())
+  withdrawnAt   DateTime?
+
+  @@index([userId])
+}
+
+model Job {
+  id              String               @id @default(cuid())
+  orgId           String
+  org             Organization         @relation(fields: [orgId], references: [id])
+  title           String
+  department      String?
+  location        String?
+  employmentType  String               @default("FULL_TIME")
+  salaryMin       Int?
+  salaryMax       Int?
+  description     String
+  requirements    String?
+  skills          String[]
+  status          JobStatus            @default(DRAFT)
+  hiringManagerId String?
+  hiringManager   User?                @relation("HiringManager", fields: [hiringManagerId], references: [id])
+  createdById     String
+  createdBy       User                 @relation("JobCreator", fields: [createdById], references: [id])
+  publishedAt     DateTime?
+  closedAt        DateTime?
+  createdAt       DateTime             @default(now())
+  updatedAt       DateTime             @updatedAt
+  questions       JobQuestion[]
+  stages          JobStage[]
+  criteria        ScorecardCriterion[]
+  applications    Application[]
+
+  @@index([orgId, status])
+}
+
+model JobQuestion {
+  id       String              @id @default(cuid())
+  jobId    String
+  job      Job                 @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  label    String
+  type     String // TEXT | LONG_TEXT | SINGLE_CHOICE | MULTI_CHOICE | YES_NO
+  options  String[]
+  required Boolean             @default(false)
+  order    Int
+  answers  ApplicationAnswer[]
+
+  @@index([jobId])
+}
+
+// USP G: every vacancy owns its own ordered stage list + approval rules.
+model JobStage {
+  id               String            @id @default(cuid())
+  jobId            String
+  job              Job               @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  name             String
+  order            Int
+  category         StageCategory     @default(ACTIVE)
+  notifyCandidate  Boolean           @default(false)
+  emailTemplateKey String?
+  requiresApproval Boolean           @default(false)
+  approverRole     Role?
+  applications     Application[]
+  transitionsTo    StageTransition[] @relation("ToStage")
+  transitionsFrom  StageTransition[] @relation("FromStage")
+  approvals        StageApproval[]
+
+  @@index([jobId, order])
+}
+
+model PipelineTemplate {
+  id        String   @id @default(cuid())
+  orgId     String
+  name      String
+  stages    Json
+  createdAt DateTime @default(now())
+}
+
+model ScorecardCriterion {
+  id    String @id @default(cuid())
+  jobId String
+  job   Job    @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  name  String
+  order Int
+}
+
+model Application {
+  id              String              @id @default(cuid())
+  jobId           String
+  job             Job                 @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  candidateId     String
+  candidate       CandidateProfile    @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+  currentStageId  String
+  currentStage    JobStage            @relation(fields: [currentStageId], references: [id])
+  resumeId        String?
+  resume          Resume?             @relation(fields: [resumeId], references: [id], onDelete: SetNull)
+  source          String              @default("WEBSITE")
+  status          AppStatus           @default(ACTIVE)
+  rejectionReason String?
+  appliedAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+  answers         ApplicationAnswer[]
+  transitions     StageTransition[]
+  approvals       StageApproval[]
+  interviews      Interview[]
+  notes           Note[]
+
+  @@unique([jobId, candidateId])
+  @@index([jobId, currentStageId])
+  @@index([status])
+}
+
+model ApplicationAnswer {
+  id            String      @id @default(cuid())
+  applicationId String
+  application   Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  questionId    String
+  question      JobQuestion @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  value         Json
+}
+
+model Note {
+  id            String      @id @default(cuid())
+  applicationId String
+  application   Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  authorId      String
+  body          String
+  createdAt     DateTime    @default(now())
+}
+
+// Source of truth for time-to-stage + funnel analytics.
+model StageTransition {
+  id            String      @id @default(cuid())
+  applicationId String
+  application   Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  fromStageId   String?
+  fromStage     JobStage?   @relation("FromStage", fields: [fromStageId], references: [id], onDelete: SetNull)
+  toStageId     String
+  toStage       JobStage    @relation("ToStage", fields: [toStageId], references: [id], onDelete: Cascade)
+  movedById     String?
+  movedBy       User?       @relation(fields: [movedById], references: [id], onDelete: SetNull)
+  note          String?
+  createdAt     DateTime    @default(now())
+
+  @@index([applicationId, createdAt])
+  @@index([toStageId])
+}
+
+model StageApproval {
+  id            String         @id @default(cuid())
+  applicationId String
+  application   Application    @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  targetStageId String
+  targetStage   JobStage       @relation(fields: [targetStageId], references: [id], onDelete: Cascade)
+  requestedById String
+  approverId    String?
+  status        ApprovalStatus @default(PENDING)
+  comment       String?
+  createdAt     DateTime       @default(now())
+  decidedAt     DateTime?
+
+  @@index([status])
+}
+
+model Interview {
+  id             String           @id @default(cuid())
+  applicationId  String
+  application    Application      @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  title          String           @default("Interview")
+  scheduledAt    DateTime
+  durationMin    Int              @default(60)
+  mode           String           @default("ONLINE") // ONLINE | ONSITE
+  locationOrLink String?
+  status         InterviewStatus  @default(SCHEDULED)
+  createdAt      DateTime         @default(now())
+  panel          InterviewPanel[]
+  scorecards     Scorecard[]
+
+  @@index([scheduledAt])
+}
+
+model InterviewPanel {
+  interviewId String
+  interview   Interview @relation(fields: [interviewId], references: [id], onDelete: Cascade)
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([interviewId, userId])
+  @@index([userId])
+}
+
+model Scorecard {
+  id             String    @id @default(cuid())
+  interviewId    String
+  interview      Interview @relation(fields: [interviewId], references: [id], onDelete: Cascade)
+  interviewerId  String
+  interviewer    User      @relation(fields: [interviewerId], references: [id], onDelete: Cascade)
+  ratings        Json // { [criterionName]: 1..5 }
+  comments       String?
+  recommendation String // STRONG_YES | YES | NO | STRONG_NO
+  submittedAt    DateTime  @default(now())
+
+  @@unique([interviewId, interviewerId])
+}
+
+model EmailTemplate {
+  id       String       @id @default(cuid())
+  orgId    String
+  org      Organization @relation(fields: [orgId], references: [id])
+  key      String
+  name     String
+  subject  String
+  bodyHtml String
+
+  @@unique([orgId, key])
+}
+
+model EmailLog {
+  id            String   @id @default(cuid())
+  orgId         String?
+  toEmail       String
+  templateKey   String?
+  subject       String
+  status        String // QUEUED | SENT | FAILED
+  error         String?
+  applicationId String?
+  createdAt     DateTime @default(now())
+
+  @@index([applicationId])
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  message   String
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([userId, read])
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  actorId    String?
+  actorRole  String?
+  action     String
+  entityType String
+  entityId   String?
+  before     Json?
+  after      Json?
+  ip         String?
+  createdAt  DateTime @default(now())
+
+  @@index([entityType, entityId])
+  @@index([createdAt])
+}
+
+model DataRequest {
+  id           String            @id @default(cuid())
+  userId       String
+  user         User              @relation("Requester", fields: [userId], references: [id], onDelete: Cascade)
+  type         DataRequestType
+  status       DataRequestStatus @default(PENDING)
+  reason       String?
+  reviewedById String?
+  createdAt    DateTime          @default(now())
+  completedAt  DateTime?
+}

@@ -1,0 +1,44 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ats
+      POSTGRES_PASSWORD: ats
+      POSTGRES_DB: ats
+    ports: ["5433:5432"]
+    volumes: [dbdata:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ats"]
+      interval: 3s
+      retries: 20
+
+  # S3-compatible object storage (MinIO no longer ships public images).
+  storage:
+    image: chrislusf/seaweedfs:4.50
+    command: server -s3 -dir=/data -ip.bind=0.0.0.0
+    ports: ["8333:8333"]
+    volumes: [s3data:/data]
+
+  mailpit:
+    image: axllent/mailpit:latest
+    ports: ["1025:1025", "8025:8025"]
+
+  api:
+    build: ./backend
+    profiles: [app]
+    env_file: ./backend/.env.docker
+    depends_on:
+      db: { condition: service_healthy }
+      storage: { condition: service_started }
+      mailpit: { condition: service_started }
+    ports: ["4000:4000"]
+
+  web:
+    build: ./frontend
+    profiles: [app]
+    depends_on: [api]
+    ports: ["5173:80"]
+
+volumes:
+  dbdata:
+  s3data:

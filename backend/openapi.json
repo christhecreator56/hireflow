@@ -1,0 +1,6146 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Recruitment & ATS API",
+    "version": "1.0.0",
+    "description": "Backend for a multi-role Recruitment & Applicant Tracking System (Express 5 + Prisma + PostgreSQL).\n\n**Auth**: login sets an httpOnly cookie `token` (8h JWT); the same JWT is returned in the response body and can be sent as `Authorization: Bearer <token>`.\n\n**Roles**: EMPLOYER, RECRUITER, HIRING_MANAGER (staff, scoped to one organization; hiring managers only see jobs where they are hiringManager) and CANDIDATE.\n\nDemo (seeded) account: `recruiter@acme.test` / `Password123!` (also employer@, manager@, candidate@acme.test)."
+  },
+  "servers": [
+    {
+      "url": "http://localhost:4000/api/v1",
+      "description": "Local dev"
+    }
+  ],
+  "tags": [
+    {
+      "name": "Auth"
+    },
+    {
+      "name": "Public"
+    },
+    {
+      "name": "Users"
+    },
+    {
+      "name": "Jobs"
+    },
+    {
+      "name": "Pipeline Templates"
+    },
+    {
+      "name": "Candidate"
+    },
+    {
+      "name": "Applications"
+    },
+    {
+      "name": "Approvals"
+    },
+    {
+      "name": "Interviews"
+    },
+    {
+      "name": "Reports"
+    },
+    {
+      "name": "Admin/Governance"
+    }
+  ],
+  "components": {
+    "securitySchemes": {
+      "cookieAuth": {
+        "type": "apiKey",
+        "in": "cookie",
+        "name": "token",
+        "description": "httpOnly JWT cookie set by /auth/login and /auth/register (8h)."
+      },
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "description": "The same JWT returned as `token` in the login/register response body."
+      }
+    },
+    "responses": {
+      "ValidationError": {
+        "description": "400 Validation failed (zod) or business-rule violation",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            },
+            "example": {
+              "error": "Validation failed",
+              "details": {
+                "email": [
+                  "Invalid email"
+                ]
+              }
+            }
+          }
+        }
+      },
+      "Unauthorized": {
+        "description": "401 Missing, invalid or expired token",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            },
+            "example": {
+              "error": "Authentication required"
+            }
+          }
+        }
+      },
+      "Forbidden": {
+        "description": "403 Role not allowed, or resource outside your scope",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            },
+            "example": {
+              "error": "You do not have permission to do this"
+            }
+          }
+        }
+      },
+      "NotFound": {
+        "description": "404 Resource not found (or in another organization)",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            },
+            "example": {
+              "error": "Job not found"
+            }
+          }
+        }
+      },
+      "Conflict": {
+        "description": "409 Conflict (duplicate, locked, double booking, stale state)",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            },
+            "example": {
+              "error": "Already exists"
+            }
+          }
+        }
+      }
+    },
+    "schemas": {
+      "Error": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "string"
+          },
+          "details": {
+            "description": "Zod field errors map, or extra info (e.g. {missing:[...]})",
+            "nullable": true
+          }
+        },
+        "required": [
+          "error"
+        ]
+      },
+      "Role": {
+        "type": "string",
+        "enum": [
+          "EMPLOYER",
+          "RECRUITER",
+          "HIRING_MANAGER",
+          "CANDIDATE"
+        ]
+      },
+      "StaffRole": {
+        "type": "string",
+        "enum": [
+          "EMPLOYER",
+          "RECRUITER",
+          "HIRING_MANAGER"
+        ]
+      },
+      "AuthUser": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "role": {
+            "$ref": "#/components/schemas/Role"
+          },
+          "orgId": {
+            "type": "string",
+            "nullable": true
+          },
+          "name": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string",
+            "format": "email"
+          }
+        },
+        "required": [
+          "id",
+          "role",
+          "name",
+          "email"
+        ]
+      },
+      "AuthResponse": {
+        "type": "object",
+        "properties": {
+          "user": {
+            "$ref": "#/components/schemas/AuthUser"
+          },
+          "token": {
+            "type": "string",
+            "description": "JWT (also set as cookie)"
+          }
+        },
+        "required": [
+          "user",
+          "token"
+        ]
+      },
+      "Organization": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "retentionDays": {
+            "type": "integer",
+            "minimum": 30,
+            "maximum": 3650
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "StaffUser": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string"
+          },
+          "role": {
+            "$ref": "#/components/schemas/Role"
+          },
+          "isActive": {
+            "type": "boolean"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "JobStatus": {
+        "type": "string",
+        "enum": [
+          "DRAFT",
+          "PUBLISHED",
+          "PAUSED",
+          "CLOSED"
+        ]
+      },
+      "EmploymentType": {
+        "type": "string",
+        "enum": [
+          "FULL_TIME",
+          "PART_TIME",
+          "CONTRACT",
+          "INTERNSHIP"
+        ]
+      },
+      "StageCategory": {
+        "type": "string",
+        "enum": [
+          "ACTIVE",
+          "HIRED",
+          "REJECTED"
+        ]
+      },
+      "AppStatus": {
+        "type": "string",
+        "enum": [
+          "ACTIVE",
+          "HIRED",
+          "REJECTED",
+          "WITHDRAWN"
+        ]
+      },
+      "Source": {
+        "type": "string",
+        "enum": [
+          "LINKEDIN",
+          "REFERRAL",
+          "JOB_BOARD",
+          "WEBSITE",
+          "OTHER"
+        ]
+      },
+      "StageInput": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Existing JobStage id (only for PUT /jobs/{id}/stages, to keep a stage)"
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 50
+          },
+          "category": {
+            "$ref": "#/components/schemas/StageCategory",
+            "default": "ACTIVE"
+          },
+          "notifyCandidate": {
+            "type": "boolean",
+            "default": false
+          },
+          "emailTemplateKey": {
+            "type": "string",
+            "nullable": true
+          },
+          "requiresApproval": {
+            "type": "boolean",
+            "default": false
+          },
+          "approverRole": {
+            "$ref": "#/components/schemas/StaffRole",
+            "nullable": true,
+            "description": "Required when requiresApproval is true"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "description": "Rules: >=2 stages, first stage ACTIVE, at least one REJECTED stage, unique names (case-insensitive), approverRole required if requiresApproval."
+      },
+      "JobStage": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "jobId": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "order": {
+            "type": "integer"
+          },
+          "category": {
+            "$ref": "#/components/schemas/StageCategory"
+          },
+          "notifyCandidate": {
+            "type": "boolean"
+          },
+          "emailTemplateKey": {
+            "type": "string",
+            "nullable": true
+          },
+          "requiresApproval": {
+            "type": "boolean"
+          },
+          "approverRole": {
+            "$ref": "#/components/schemas/StaffRole",
+            "nullable": true
+          },
+          "_count": {
+            "type": "object",
+            "properties": {
+              "applications": {
+                "type": "integer"
+              }
+            }
+          }
+        }
+      },
+      "QuestionInput": {
+        "type": "object",
+        "properties": {
+          "label": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 300
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "TEXT",
+              "LONG_TEXT",
+              "SINGLE_CHOICE",
+              "MULTI_CHOICE",
+              "YES_NO"
+            ]
+          },
+          "options": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "default": [],
+            "description": ">=2 options required for SINGLE_CHOICE / MULTI_CHOICE"
+          },
+          "required": {
+            "type": "boolean",
+            "default": false
+          }
+        },
+        "required": [
+          "label",
+          "type"
+        ]
+      },
+      "JobQuestion": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "jobId": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string"
+          },
+          "options": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "required": {
+            "type": "boolean"
+          },
+          "order": {
+            "type": "integer"
+          }
+        }
+      },
+      "Criterion": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "jobId": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "order": {
+            "type": "integer"
+          }
+        }
+      },
+      "JobCreate": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 120
+          },
+          "department": {
+            "type": "string",
+            "maxLength": 80,
+            "nullable": true
+          },
+          "location": {
+            "type": "string",
+            "maxLength": 80,
+            "nullable": true
+          },
+          "employmentType": {
+            "$ref": "#/components/schemas/EmploymentType",
+            "default": "FULL_TIME"
+          },
+          "salaryMin": {
+            "type": "integer",
+            "minimum": 0,
+            "nullable": true
+          },
+          "salaryMax": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Must be >= salaryMin",
+            "nullable": true
+          },
+          "description": {
+            "type": "string",
+            "minLength": 10
+          },
+          "requirements": {
+            "type": "string",
+            "nullable": true
+          },
+          "skills": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "default": []
+          },
+          "hiringManagerId": {
+            "type": "string",
+            "nullable": true,
+            "description": "Must be an active HIRING_MANAGER or EMPLOYER in your organization"
+          },
+          "questions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/QuestionInput"
+            },
+            "default": []
+          },
+          "stages": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/StageInput"
+            },
+            "description": "Custom pipeline for this vacancy (USP G). Defaults to Applied/Screening/Assessment/Interview/Offer(approval by HIRING_MANAGER)/Hired/Rejected."
+          },
+          "pipelineTemplateId": {
+            "type": "string",
+            "description": "Use an org pipeline template (ignored if stages is given)"
+          },
+          "criteria": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "description": "Scorecard criteria; default: Technical skills, Problem solving, Communication, Culture fit"
+          }
+        },
+        "required": [
+          "title",
+          "description"
+        ]
+      },
+      "JobUpdate": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 120
+          },
+          "department": {
+            "type": "string",
+            "maxLength": 80,
+            "nullable": true
+          },
+          "location": {
+            "type": "string",
+            "maxLength": 80,
+            "nullable": true
+          },
+          "employmentType": {
+            "$ref": "#/components/schemas/EmploymentType",
+            "default": "FULL_TIME"
+          },
+          "salaryMin": {
+            "type": "integer",
+            "minimum": 0,
+            "nullable": true
+          },
+          "salaryMax": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Must be >= salaryMin",
+            "nullable": true
+          },
+          "description": {
+            "type": "string",
+            "minLength": 10
+          },
+          "requirements": {
+            "type": "string",
+            "nullable": true
+          },
+          "skills": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "default": []
+          },
+          "hiringManagerId": {
+            "type": "string",
+            "nullable": true,
+            "description": "Must be an active HIRING_MANAGER or EMPLOYER in your organization"
+          }
+        },
+        "description": "All fields optional (PATCH). Stages/questions/criteria have dedicated endpoints."
+      },
+      "Job": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "orgId": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "department": {
+            "type": "string",
+            "nullable": true
+          },
+          "location": {
+            "type": "string",
+            "nullable": true
+          },
+          "employmentType": {
+            "type": "string"
+          },
+          "salaryMin": {
+            "type": "integer",
+            "nullable": true
+          },
+          "salaryMax": {
+            "type": "integer",
+            "nullable": true
+          },
+          "description": {
+            "type": "string"
+          },
+          "requirements": {
+            "type": "string",
+            "nullable": true
+          },
+          "skills": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "status": {
+            "$ref": "#/components/schemas/JobStatus"
+          },
+          "hiringManagerId": {
+            "type": "string",
+            "nullable": true
+          },
+          "createdById": {
+            "type": "string"
+          },
+          "publishedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "closedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "JobListItem": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/Job"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "hiringManager": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "name": {
+                    "type": "string"
+                  }
+                },
+                "nullable": true
+              },
+              "_count": {
+                "type": "object",
+                "properties": {
+                  "applications": {
+                    "type": "integer"
+                  }
+                }
+              }
+            }
+          }
+        ]
+      },
+      "JobDetail": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/Job"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "questions": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/JobQuestion"
+                }
+              },
+              "stages": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/JobStage"
+                }
+              },
+              "criteria": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/Criterion"
+                }
+              },
+              "hiringManager": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "name": {
+                    "type": "string"
+                  }
+                },
+                "nullable": true
+              },
+              "_count": {
+                "type": "object",
+                "properties": {
+                  "applications": {
+                    "type": "integer"
+                  }
+                }
+              }
+            }
+          }
+        ]
+      },
+      "PublicJob": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "department": {
+            "type": "string",
+            "nullable": true
+          },
+          "location": {
+            "type": "string",
+            "nullable": true
+          },
+          "employmentType": {
+            "type": "string"
+          },
+          "salaryMin": {
+            "type": "integer",
+            "nullable": true
+          },
+          "salaryMax": {
+            "type": "integer",
+            "nullable": true
+          },
+          "skills": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "publishedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "org": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      },
+      "KanbanCard": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/AppStatus"
+          },
+          "source": {
+            "type": "string"
+          },
+          "appliedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "currentStageId": {
+            "type": "string"
+          },
+          "candidate": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "skills": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "experienceYears": {
+                "type": "integer",
+                "nullable": true
+              },
+              "anonymizedAt": {
+                "type": "string",
+                "format": "date-time",
+                "nullable": true
+              },
+              "user": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          },
+          "_count": {
+            "type": "object",
+            "properties": {
+              "interviews": {
+                "type": "integer"
+              }
+            }
+          },
+          "approvals": {
+            "type": "array",
+            "description": "PENDING approvals only",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "targetStageId": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      },
+      "PipelineTemplate": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "orgId": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "stages": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/StageInput"
+            }
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "Application": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "jobId": {
+            "type": "string"
+          },
+          "candidateId": {
+            "type": "string"
+          },
+          "currentStageId": {
+            "type": "string"
+          },
+          "resumeId": {
+            "type": "string",
+            "nullable": true
+          },
+          "source": {
+            "$ref": "#/components/schemas/Source"
+          },
+          "status": {
+            "$ref": "#/components/schemas/AppStatus"
+          },
+          "rejectionReason": {
+            "type": "string",
+            "nullable": true
+          },
+          "appliedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "StageTransition": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "applicationId": {
+            "type": "string"
+          },
+          "fromStageId": {
+            "type": "string",
+            "nullable": true
+          },
+          "toStageId": {
+            "type": "string"
+          },
+          "movedById": {
+            "type": "string",
+            "nullable": true
+          },
+          "note": {
+            "type": "string",
+            "nullable": true
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "StageApproval": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "applicationId": {
+            "type": "string"
+          },
+          "targetStageId": {
+            "type": "string"
+          },
+          "requestedById": {
+            "type": "string"
+          },
+          "approverId": {
+            "type": "string",
+            "nullable": true
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "PENDING",
+              "APPROVED",
+              "REJECTED"
+            ]
+          },
+          "comment": {
+            "type": "string",
+            "nullable": true
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "decidedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          }
+        }
+      },
+      "Note": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "applicationId": {
+            "type": "string"
+          },
+          "authorId": {
+            "type": "string"
+          },
+          "body": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "EmailLog": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "orgId": {
+            "type": "string",
+            "nullable": true
+          },
+          "toEmail": {
+            "type": "string"
+          },
+          "templateKey": {
+            "type": "string",
+            "nullable": true
+          },
+          "subject": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "QUEUED",
+              "SENT",
+              "FAILED"
+            ]
+          },
+          "error": {
+            "type": "string",
+            "nullable": true
+          },
+          "applicationId": {
+            "type": "string",
+            "nullable": true
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "Resume": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "candidateId": {
+            "type": "string"
+          },
+          "fileKey": {
+            "type": "string"
+          },
+          "fileName": {
+            "type": "string"
+          },
+          "mimeType": {
+            "type": "string"
+          },
+          "size": {
+            "type": "integer"
+          },
+          "uploadedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "Interview": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "applicationId": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "scheduledAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "durationMin": {
+            "type": "integer"
+          },
+          "mode": {
+            "type": "string",
+            "enum": [
+              "ONLINE",
+              "ONSITE"
+            ]
+          },
+          "locationOrLink": {
+            "type": "string",
+            "nullable": true
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "SCHEDULED",
+              "COMPLETED",
+              "CANCELLED"
+            ]
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "panel": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "interviewId": {
+                  "type": "string"
+                },
+                "userId": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      },
+      "ApplicationDetail": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/Application"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "job": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "title": {
+                    "type": "string"
+                  },
+                  "hiringManagerId": {
+                    "type": "string",
+                    "nullable": true
+                  },
+                  "stages": {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/JobStage"
+                    }
+                  },
+                  "criteria": {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/Criterion"
+                    }
+                  }
+                }
+              },
+              "currentStage": {
+                "$ref": "#/components/schemas/JobStage"
+              },
+              "resume": {
+                "$ref": "#/components/schemas/Resume",
+                "nullable": true
+              },
+              "candidate": {
+                "type": "object",
+                "description": "CandidateProfile incl. user {id,name,email}"
+              },
+              "answers": {
+                "type": "array",
+                "items": {
+                  "type": "object"
+                }
+              },
+              "transitions": {
+                "type": "array",
+                "items": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/StageTransition"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "fromStage": {
+                          "type": "object",
+                          "properties": {
+                            "name": {
+                              "type": "string"
+                            }
+                          },
+                          "nullable": true
+                        },
+                        "toStage": {
+                          "type": "object",
+                          "properties": {
+                            "name": {
+                              "type": "string"
+                            }
+                          }
+                        },
+                        "movedBy": {
+                          "type": "object",
+                          "properties": {
+                            "name": {
+                              "type": "string"
+                            },
+                            "role": {
+                              "$ref": "#/components/schemas/Role"
+                            }
+                          },
+                          "nullable": true
+                        }
+                      }
+                    }
+                  ]
+                }
+              },
+              "approvals": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/StageApproval"
+                }
+              },
+              "interviews": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/Interview"
+                }
+              },
+              "notes": {
+                "type": "array",
+                "items": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Note"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "author": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  ]
+                }
+              },
+              "emails": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/EmailLog"
+                }
+              }
+            }
+          }
+        ]
+      },
+      "MoveRequest": {
+        "type": "object",
+        "properties": {
+          "toStageId": {
+            "type": "string"
+          },
+          "note": {
+            "type": "string",
+            "maxLength": 500
+          }
+        },
+        "required": [
+          "toStageId"
+        ]
+      },
+      "MovedResponse": {
+        "type": "object",
+        "properties": {
+          "moved": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          },
+          "application": {
+            "$ref": "#/components/schemas/Application"
+          }
+        },
+        "required": [
+          "moved",
+          "application"
+        ]
+      },
+      "ApprovalPendingResponse": {
+        "type": "object",
+        "properties": {
+          "moved": {
+            "type": "boolean",
+            "enum": [
+              false
+            ]
+          },
+          "approvalId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "moved",
+          "approvalId"
+        ]
+      },
+      "InterviewCreate": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 100,
+            "default": "Interview"
+          },
+          "scheduledAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Must be in the future"
+          },
+          "durationMin": {
+            "type": "integer",
+            "minimum": 15,
+            "maximum": 480,
+            "default": 60
+          },
+          "mode": {
+            "type": "string",
+            "enum": [
+              "ONLINE",
+              "ONSITE"
+            ],
+            "default": "ONLINE"
+          },
+          "locationOrLink": {
+            "type": "string",
+            "maxLength": 300
+          },
+          "interviewerIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "minItems": 1,
+            "description": "Active staff users of your org; no overlapping SCHEDULED interview allowed for any of them"
+          }
+        },
+        "required": [
+          "scheduledAt",
+          "interviewerIds"
+        ]
+      },
+      "InterviewUpdate": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 100,
+            "default": "Interview"
+          },
+          "scheduledAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Must be in the future"
+          },
+          "durationMin": {
+            "type": "integer",
+            "minimum": 15,
+            "maximum": 480,
+            "default": 60
+          },
+          "mode": {
+            "type": "string",
+            "enum": [
+              "ONLINE",
+              "ONSITE"
+            ],
+            "default": "ONLINE"
+          },
+          "locationOrLink": {
+            "type": "string",
+            "maxLength": 300
+          },
+          "interviewerIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "minItems": 1,
+            "description": "Active staff users of your org; no overlapping SCHEDULED interview allowed for any of them"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "SCHEDULED",
+              "COMPLETED",
+              "CANCELLED"
+            ]
+          }
+        },
+        "description": "All optional; defaults are NOT applied on PATCH."
+      },
+      "ScorecardCreate": {
+        "type": "object",
+        "properties": {
+          "ratings": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 5
+            },
+            "description": "Map criterionName -> 1..5; must cover exactly the job's criteria"
+          },
+          "comments": {
+            "type": "string",
+            "maxLength": 3000
+          },
+          "recommendation": {
+            "type": "string",
+            "enum": [
+              "STRONG_YES",
+              "YES",
+              "NO",
+              "STRONG_NO"
+            ]
+          }
+        },
+        "required": [
+          "ratings",
+          "recommendation"
+        ]
+      },
+      "Scorecard": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "interviewId": {
+            "type": "string"
+          },
+          "interviewerId": {
+            "type": "string"
+          },
+          "ratings": {
+            "type": "object"
+          },
+          "comments": {
+            "type": "string",
+            "nullable": true
+          },
+          "recommendation": {
+            "type": "string"
+          },
+          "submittedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "CandidateProfile": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "userId": {
+            "type": "string"
+          },
+          "phone": {
+            "type": "string",
+            "nullable": true
+          },
+          "location": {
+            "type": "string",
+            "nullable": true
+          },
+          "linkedin": {
+            "type": "string",
+            "nullable": true
+          },
+          "headline": {
+            "type": "string",
+            "nullable": true
+          },
+          "skills": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "experienceYears": {
+            "type": "integer",
+            "nullable": true
+          },
+          "anonymizedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          }
+        }
+      },
+      "ProfileUpdate": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 100
+          },
+          "phone": {
+            "type": "string",
+            "nullable": true,
+            "pattern": "^[+\\d\\s()-]{7,20}$"
+          },
+          "location": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 100
+          },
+          "linkedin": {
+            "type": "string",
+            "format": "uri",
+            "nullable": true
+          },
+          "headline": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 150
+          },
+          "skills": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40
+            },
+            "maxItems": 30
+          },
+          "experienceYears": {
+            "type": "integer",
+            "nullable": true,
+            "minimum": 0,
+            "maximum": 60
+          }
+        },
+        "additionalProperties": false,
+        "description": "strict(): unknown keys (email, role...) are rejected with 400."
+      },
+      "ApplyRequest": {
+        "type": "object",
+        "properties": {
+          "resumeId": {
+            "type": "string"
+          },
+          "source": {
+            "$ref": "#/components/schemas/Source",
+            "default": "WEBSITE"
+          },
+          "answers": {
+            "type": "object",
+            "description": "Map questionId -> answer",
+            "additionalProperties": {
+              "oneOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                {
+                  "type": "boolean"
+                }
+              ]
+            },
+            "default": {}
+          }
+        }
+      },
+      "Consent": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "userId": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string",
+            "description": "DATA_PROCESSING, TALENT_POOL, MARKETING, APPLICATION:<jobId>"
+          },
+          "policyVersion": {
+            "type": "string"
+          },
+          "granted": {
+            "type": "boolean"
+          },
+          "ip": {
+            "type": "string",
+            "nullable": true
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "withdrawnAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          }
+        }
+      },
+      "DataRequest": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "userId": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "EXPORT",
+              "DELETE"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "PENDING",
+              "APPROVED",
+              "REJECTED",
+              "COMPLETED"
+            ]
+          },
+          "reason": {
+            "type": "string",
+            "nullable": true
+          },
+          "reviewedById": {
+            "type": "string",
+            "nullable": true
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "completedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          }
+        }
+      },
+      "Notification": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "userId": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "read": {
+            "type": "boolean"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "AuditLog": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "actorId": {
+            "type": "string",
+            "nullable": true
+          },
+          "actorRole": {
+            "type": "string",
+            "nullable": true
+          },
+          "action": {
+            "type": "string"
+          },
+          "entityType": {
+            "type": "string"
+          },
+          "entityId": {
+            "type": "string",
+            "nullable": true
+          },
+          "before": {
+            "nullable": true
+          },
+          "after": {
+            "nullable": true
+          },
+          "ip": {
+            "type": "string",
+            "nullable": true
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "actorName": {
+            "type": "string"
+          }
+        }
+      },
+      "EmailTemplate": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "orgId": {
+            "type": "string"
+          },
+          "key": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "subject": {
+            "type": "string"
+          },
+          "bodyHtml": {
+            "type": "string"
+          }
+        }
+      },
+      "FunnelRow": {
+        "type": "object",
+        "properties": {
+          "stage": {
+            "type": "string"
+          },
+          "order": {
+            "type": "integer"
+          },
+          "count": {
+            "type": "integer"
+          },
+          "percent": {
+            "type": "number"
+          }
+        }
+      }
+    }
+  },
+  "paths": {
+    "/auth/register": {
+      "post": {
+        "tags": [
+          "Auth"
+        ],
+        "summary": "Register a candidate account",
+        "description": "Public sign-up is candidate-only (staff are created by an EMPLOYER via POST /users). Records DATA_PROCESSING consent (and TALENT_POOL if requested). Rate limited (20 / 15 min per IP, shared with login).\n\n**Roles:** public (no auth).",
+        "operationId": "register",
+        "responses": {
+          "201": {
+            "description": "Created; sets `token` cookie",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "409": {
+            "description": "Email already registered",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": "An account with this email already exists"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many attempts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": "Too many login attempts, try again later"
+                }
+              }
+            }
+          }
+        },
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "minLength": 2,
+                    "maxLength": 100
+                  },
+                  "email": {
+                    "type": "string",
+                    "format": "email"
+                  },
+                  "password": {
+                    "type": "string",
+                    "minLength": 8,
+                    "maxLength": 100
+                  },
+                  "consent": {
+                    "type": "boolean",
+                    "enum": [
+                      true
+                    ],
+                    "description": "Must be true (privacy policy accepted)"
+                  },
+                  "talentPoolConsent": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "name",
+                  "email",
+                  "password",
+                  "consent"
+                ]
+              },
+              "example": {
+                "name": "Asha Verma",
+                "email": "asha@example.com",
+                "password": "Password123!",
+                "consent": true,
+                "talentPoolConsent": false
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/login": {
+      "post": {
+        "tags": [
+          "Auth"
+        ],
+        "summary": "Log in",
+        "description": "Sets httpOnly cookie `token` (8h, SameSite=Lax) and returns the same JWT in the body. Rate limited: 20 requests / 15 min / IP.\n\n**Roles:** public (no auth).",
+        "operationId": "login",
+        "responses": {
+          "200": {
+            "description": "Logged in; Set-Cookie: token=...; HttpOnly",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthResponse"
+                },
+                "example": {
+                  "user": {
+                    "id": "cmw7k5rg30004rspg6k8vspt4",
+                    "role": "RECRUITER",
+                    "orgId": "cmw7k5rfx0000rspgzg615ky4",
+                    "name": "Rahul Recruiter",
+                    "email": "recruiter@acme.test"
+                  },
+                  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "401": {
+            "description": "Invalid credentials or inactive account",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": "Invalid email or password"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many attempts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": "Too many login attempts, try again later"
+                }
+              }
+            }
+          }
+        },
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "email": {
+                    "type": "string",
+                    "format": "email"
+                  },
+                  "password": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "required": [
+                  "email",
+                  "password"
+                ]
+              },
+              "example": {
+                "email": "recruiter@acme.test",
+                "password": "Password123!"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/logout": {
+      "post": {
+        "tags": [
+          "Auth"
+        ],
+        "summary": "Log out (clear cookie)",
+        "description": "**Roles:** public (no auth).",
+        "operationId": "logout",
+        "responses": {
+          "204": {
+            "description": "Cookie cleared, no body"
+          }
+        },
+        "security": []
+      }
+    },
+    "/auth/me": {
+      "get": {
+        "tags": [
+          "Auth"
+        ],
+        "summary": "Current user and organization",
+        "description": "**Roles allowed:** EMPLOYER, RECRUITER, HIRING_MANAGER, CANDIDATE.",
+        "operationId": "me",
+        "responses": {
+          "200": {
+            "description": "Session info",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "user": {
+                      "$ref": "#/components/schemas/AuthUser"
+                    },
+                    "org": {
+                      "$ref": "#/components/schemas/Organization",
+                      "nullable": true
+                    }
+                  }
+                },
+                "example": {
+                  "user": {
+                    "id": "cmw7k5rg30004rspg6k8vspt4",
+                    "role": "RECRUITER",
+                    "orgId": "cmw7k5rfx0000rspgzg615ky4",
+                    "name": "Rahul Recruiter",
+                    "email": "recruiter@acme.test"
+                  },
+                  "org": {
+                    "id": "cmw7k5rfx0000rspgzg615ky4",
+                    "name": "Acme Technologies",
+                    "retentionDays": 180,
+                    "createdAt": "2026-11-08T08:16:00.000Z"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        },
+        "security": [
+          {
+            "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/public/jobs": {
+      "get": {
+        "tags": [
+          "Public"
+        ],
+        "summary": "Search published jobs",
+        "description": "Only PUBLISHED jobs, newest first, max 100 results.\n\n**Roles:** public (no auth).",
+        "operationId": "publicJobs",
+        "responses": {
+          "200": {
+            "description": "Jobs",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/PublicJob"
+                  }
+                },
+                "example": [
+                  {
+                    "id": "cmw7k5rgq0010rspgm8a8z4ty",
+                    "title": "Frontend Developer Intern",
+                    "department": "Engineering",
+                    "location": "Remote",
+                    "employmentType": "INTERNSHIP",
+                    "salaryMin": 25000,
+                    "salaryMax": 40000,
+                    "skills": [
+                      "React",
+                      "Tailwind",
+                      "TypeScript"
+                    ],
+                    "publishedAt": "2026-10-14T08:16:09.289Z",
+                    "org": {
+                      "name": "Acme Technologies"
+                    }
+                  }
+                ]
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/ValidationError"
+          }
+        },
+        "security": [],
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Case-insensitive match on title or description"
+          },
+          {
+            "name": "location",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Contains, case-insensitive"
+          },
+          {
+            "name": "type",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/EmploymentType"
+            },
+            "description": "Exact employmentType"
+          },
+          {
+            "name": "skill",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Exact skill tag"
+          }
+        ]
+      }
+    },
+    "/public/jobs/{id}": {
+      "get": {
+        "tags": [
+          "Public"
+        ],
+        "summary": "Published job detail with application questions",
+        "description": "**Roles:** public (no auth).",
+        "operationId": "publicJobDetail",
+        "responses": {
+          "200": {
+            "description": "Job",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/PublicJob"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "description": {
+                          "type": "string"
+                        },
+                        "requirements": {
+                          "type": "string",
+                          "nullable": true
+                        },
+                        "questions": {
+                          "type": "array",
+                          "items": {
+                            "$ref": "#/components/schemas/JobQuestion"
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "security": [],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Resource id"
+          }
+        ]
+      }
+    },
+    "/users": {
+      "get": {
+        "tags": [
+          "Users"
+        ],
+        "summary": "List users of my organization",
+        "description": "**Roles allowed:** EMPLOYER, RECRUITER, HIRING_MANAGER.",
+        "operationId": "listUsers",
+        "responses": {
+          "200": {
+            "description": "Users sorted by name",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/StaffUser"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        },
+        "security": [
+          {
+            "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "Users"
+        ],
+        "summary": "Create a staff user",
+        "description": "**Roles allowed:** EMPLOYER.",
+        "operationId": "createUser",
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StaffUser"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          }
+        },
+        "security": [
+          {
+            "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "minLength": 2
+                  },
+                  "email": {
+                    "type": "string",
+                    "format": "email"
+                  },
+                  "role": {
+                    "$ref": "#/components/schemas/StaffRole"
+                  },
+                  "password": {
+                    "type": "string",
+                    "minLength": 8
+                  }
+                },
+                "required": [
+                  "name",
+                  "email",
+                  "role",
+                  "password"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/users/{id}": {
+      "patch": {
+        "tags": [
+          "Users"
+        ],
+        "summary": "Change role / activate / deactivate user",
+        "description": "**Roles allowed:** EMPLOYER.",
+        "operationId": "updateUser",
+        "responses": {
+          "200": {
+            "description": "Updated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StaffUser"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "security": [
+          {
+            "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Resource id"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "role": {
+                    "$ref": "#/components/schemas/StaffRole"
+                  },
+                  "isActive": {
+                    "type": "boolean"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/jobs": {
+      "get": {
+        "tags": [
+          "Jobs"
+        ],
+        "summary": "List jobs of my organization",
+        "description": "Hiring managers only see jobs where they are the hiring manager. NOTE: an unknown `status` value currently yields 500 (not validated).\n\n**Roles allowed:** EMPLOYER, RECRUITER, HIRING_MANAGER.",
+        "operationId": "listJobs",
+        "responses": {
+          "200": {
+            "description": "Jobs",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/JobListItem"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        },
+        "security": [
+          {
+            "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/JobStatus"
+            },
+            "description": "Filter by status"
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "Jobs"
+        ],
+        "summary": "Create a job (status DRAFT)",
+        "description": "Pipeline: `stages` > `pipelineTemplateId` > default pipeline. Creates stages, questions and scorecard criteria in one write. Always created as DRAFT; publish via POST /jobs/{id}/status.\n\n**Roles allowed:** EMPLOYER, RECRUITER.",
+        "operationId": "createJob",
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Job"
+                },
+                "example": {
+                  "id": "cmw7k5rgz0020rspgnewjob001",
+                  "orgId": "cmw7k5rfx0000rspgzg615ky4",
+                  "title": "Backend Engineer",
+                  "department": "Engineering",
+                  "location": "Chennai",
+                  "employmentType": "FULL_TIME",
+                  "salaryMin": 1500000,
+                  "salaryMax": 2400000,
+                  "description": "Build and operate our ATS services in Node.js and PostgreSQL.",
+                  "requirements": "3+ years Node.js",
+                  "skills": [
+                    "Node.js",
+                    "PostgreSQL"
+                  ],
+                  "status": "DRAFT",
+                  "hiringManagerId": "cmw7k5rg30006rspgxxxxxxxx",
+                  "createdById": "cmw7k5rg30004rspg6k8vspt4",
+                  "publishedAt": null,
+                  "closedAt": null,
+                  "createdAt": "2026-11-08T09:00:00.000Z",
+                  "updatedAt": "2026-11-08T09:00:00.000Z"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "security": [
+          {
+            "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/JobCreate"
+              },
+              "example": {
+                "title": "Backend Engineer",
+                "department": "Engineering",
+                "location": "Chennai",
+                "employmentType": "FULL_TIME",
+                "salaryMin": 1500000,
+                "salaryMax": 2400000,
+                "description": "Build and operate our ATS services in Node.js and PostgreSQL.",
+                "requirements": "3+ years Node.js",
+                "skills": [
+                  "Node.js",
+                  "PostgreSQL"
+                ],
+                "hiringManagerId": "cmw7k5rg30006rspgxxxxxxxx",
+                "questions": [
+                  {
+                    "label": "Why Acme?",
+                    "type": "LONG_TEXT",
+                    "required": true
+                  },
+                  {
+                    "label": "Notice period",
+                    "type": "SINGLE_CHOICE",
+                    "options": [
+                      "Immediate",
+                      "30 days"
+                    ],
+                    "required": true
+                  }
+                ],
+                "pipelineTemplateId": "cmw7k5rgb000arspgtemplate1",
+                "criteria": [
+                  "Technical skills",
+                  "Communication"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/jobs/{id}": {
+      "get": {
+        "tags": [
+          "Jobs"
+        ],
+        "summary": "Job detail (stages with card counts, questions, criteria)",
+        "description": "**Roles allowed:** EMPLOYER, RECRUITER, HIRING_MANAGER.",
+        "operationId": "getJob",
+        "responses": {
+          "200": {
+            "description": "Job",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobDetail"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "security": [
+          {
+            "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Resource id"
+          }
+        ]
+      },
+      "patch": {
+        "tags": [
+          "Jobs"
+        ],
+        "summary": "Update job fields",
+        "description": "**Roles allowed:** EMPLOYER, RECRUITER.",
+        "operationId": "updateJob",
+        "responses": {
+          "200": {
+            "description": "Updated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Job"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "security": [
+          {
+            "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Resource id"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/JobUpdate"
+              },
+              "example": {
+                "salaryMax": 2600000
+              }
+            }
+          }
+        }
+      }
+    },
+    "/jobs/{id}/status": {
+      "post": {
+        "tags": [
+          "Jobs"
+        ],
+        "summary": "Change job status",
+        "description": "Allowed transitions: DRAFT->PUBLISHED|CLOSED, PUBLISHED->PAUSED|CLOSED, PAUSED->PUBLISHED|CLOSED, CLOSED->none (409).\n\n**Roles allowed:** EMPLOYER, RECRUITER.",
+        "operationId": "setJobStatus",
+        "responses": {
+          "200": {
+            "description": "Updated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Job"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "description": "Illegal transition",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": "Cannot change a closed job to published"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Resource id"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "status": {
+                    "$ref": "#/components/schemas/JobStatus"
+                  }
+                },
+                "required": [
+                  "status"
+                ]
+              },
+              "example": {
+                "status": "PUBLISHED"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/jobs/{id}/questions": {
+      "put": {
+        "tags": [
+          "Jobs"
+        ],
+        "summary": "Replace application questions",
+        "description": "Body is a bare JSON array. Locked (409) once any candidate has applied.\n\n**Roles allowed:** EMPLOYER, RECRUITER.",
+        "operationId": "setQuestions",
+        "responses": {
+          "200": {
+            "description": "New question list",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/JobQuestion"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          }
+        },
+        "security": [
+          {
+            "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Resource id"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/QuestionInput"
+                }
+              },
+              "example": [
+                {
+                  "label": "Notice period",
+                  "type": "SINGLE_CHOICE",
+                  "options": [
+                    "Immediate",
+                    "30 days"
+                  ],
+                  "required": true
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    "/jobs/{id}/stages": {
+      "put": {
+        "tags": [
+          "Jobs"
+        ],
+        "summary": "Replace the vacancy pipeline (USP G)",
+        "description": "Body is a bare JSON array, in order. Include `id` to keep/update an existing stage; omit to create; omitted existing stages are deleted unless they still hold applications (409).\n\n**Roles allowed:** EMPLOYER, RECRUITER.",
+        "operationId": "setStages",
+        "responses": {
+          "200": {
+            "description": "Stages in order",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/JobStage"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          }
+        },
+        "security": [
+          {
+            "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Resource id"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/StageInput"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/jobs/{id}/criteria": {
+      "put": {
+        "tags": [
+          "Jobs"
+        ],
+        "summary": "Replace scorecard criteria",
+        "description": "Body is a bare JSON array of names (min 1).\n\n**Roles allowed:** EMPLOYER, RECRUITER.",
+        "operationId": "setCriteria",
+        "responses": {
+          "200": {
+            "description": "Criteria",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Criterion"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "security": [
+          {
+            "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Resource id"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "array",
+                "minItems": 1,
+                "items": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "example": [
+                "Technical skills",
+                "Communication"
+              ]
+            }
+          }
+        }
+      }
+    },
+    "/jobs/{id}/applications": {
+      "get": {
+        "tags": [
+          "Jobs"
+        ],
+        "summary": "Kanban board data for a job",
+        "description": "Lean list, newest first, capped at 500 cards, not paginated. Group by currentStageId client-side.\n\n**Roles allowed:** EMPLOYER, RECRUITER, HIRING_MANAGER.",
+        "operationId": "jobApplications",
+        "responses": {
+          "200": {
+            "description": "Cards",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/KanbanCard"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "security": [
+          {
+            "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Resource id"
+          }
+        ]
+      }
+    },
+    "/pipeline-templates": {
+      "get": {
+        "tags": [
+          "Pipeline Templates"
+        ],
+        "summary": "List pipeline templates",
+        "description": "**Roles allowed:** EMPLOYER, RECRUITER, HIRING_MANAGER.",
+        "operationId": "listTemplates",
+        "responses": {
+          "200": {
+            "description": "Templates",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/PipelineTemplate"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        },
+        "security": [
+          {
+            "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "Pipeline Templates"
+        ],
+        "summary": "Create a pipeline template",
+        "description": "**Roles allowed:** EMPLOYER, RECRUITER.",
+        "operationId": "createTemplate",
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PipelineTemplate"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        },
+        "security": [
+          {
+            "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "minLength": 2
+                  },
+                  "stages": {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/StageInput"
+                    }
+                  }
+                },
+                "required": [
+                  "name",
+                  "stages"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/me/profile": {
+      "get": {
+        "tags": [
+          "Candidate"
+        ],
+        "summary": "My profile and resumes",
+        "description": "**Roles allowed:** CANDIDATE.",
+        "operationId": "getProfile",
+        "responses": {
+          "200": {
+            "description": "Profile",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/CandidateProfile"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "user": {
+                          "type": "object",
+                          "properties": {
+                            "name": {
+                              "type": "string"
+                            },
+                            "email": {
+                              "type": "string"
+                            }
+                          }
+                        },
+                        "resumes": {
+                          "type": "array",
+                          "items": {
+                            "$ref": "#/components/schemas/Resume"
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        },
+        "security": [
+          {
+            "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ]
+      },
+      "patch": {
+        "tags": [
+          "Candidate"
+        ],
+        "summary": "Update my profile",
+        "description": "**Roles allowed:** CANDIDATE.",
+        "operationId": "updateProfile",
+        "responses": {
+          "200": {
+            "description": "Updated profile",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CandidateProfile"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "security": [
+          {
+            "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProfileUpdate"
+              },
+              "example": {
+                "headline": "Full stack developer",
+                "skills": [
+                  "React",
+                  "Node.js"
+                ],
+                "experienceYears": 3
+              }
+            }
+          }
+        }
+      }
+    },
+    "/me/resumes": {
+      "post": {
+        "tags": [
+          "Candidate"
+        ],
+        "summary": "Upload a resume (PDF or DOCX, max 5 MB)",
+        "description": "**Roles allowed:** CANDIDATE.",
+        "operationId": "uploadResume",
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Resume"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "security": [
+          {
+            "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "file": {
+                    "type": "string",
+                    "format": "binary",
+                    "description": "application/pdf or .docx; max 5 MB"
+                  }
+                },
+                "required": [
+                  "file"
+                ]
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "Candidate"
+        ],
+        "summary": "List my resumes",
+        "description": "**Roles allowed:** CANDIDATE.",
+        "operationId": "listResumes",
+        "responses": {
+          "200": {
+            "description": "Resumes",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Resume"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "security": [
+          {
+            "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/me/resumes/{id}/url": {
+      "get": {
+        "tags": [
+          "Candidate"
+        ],
+        "summary": "Signed download URL for my resume",
+        "description": "**Roles allowed:** CANDIDATE.",
+        "operationId": "myResumeUrl",
+        "responses": {
+          "200": {
+            "description": "URL",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "url": {
+                      "type": "string",
+                      "format": "uri"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "security": [
+          {
+            "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Resource id"
+          }
+        ]
+      }
+    },
+    "/jobs/{id}/apply": {
+      "post": {
+        "tags": [
+          "Candidate"
+        ],
+        "summary": "Apply to a published job",
+        "description": "Job must be PUBLISHED; required questions must be answered; one application per job (409). Puts the application in the first stage, records a transition, an APPLICATION:<jobId> consent and sends the application_received email.\n\n**Roles allowed:** CANDIDATE.",
+        "operationId": "apply",
+        "responses": {
+          "201": {
+            "description": "Application created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Application"
+                },
+                "example": {
+                  "id": "cmw7k5rj00040rspgapp0001",
+                  "jobId": "cmw7k5rge000krspg6rwrcpbq",
+                  "candidateId": "cmw7k5rh00010rspgcand001",
+                  "currentStageId": "cmw7k5rg6000brspgstage01",
+                  "resumeId": "cmw7k5rhq0030rspgresume01",
+                  "source": "LINKEDIN",
+                  "status": "ACTIVE",
+                  "rejectionReason": null,
+                  "appliedAt": "2026-11-08T09:10:00.000Z",
+                  "updatedAt": "2026-11-08T09:10:00.000Z"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Job not accepting applications, missing required answers, unknown question ids, or resume not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": "Please answer all required questions",
+                  "details": {
+                    "missing": [
+                      "Notice period"
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "description": "Already applied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": "You have already applied to this job"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Job id"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ApplyRequest"
+              },
+              "example": {
+                "resumeId": "cmw7k5rhq0030rspgresume01",
+                "source": "LINKEDIN",
+                "answers": {
+                  "cmw7k5rgj000lrspgq1": "I love the engineering culture.",
+                  "cmw7k5rgj000mrspgq2": "30 days",
+                  "cmw7k5rgj000nrspgq3": true
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/me/applications": {
+      "get": {
+        "tags": [
+          "Candidate"
+        ],
+        "summary": "My applications with candidate-safe status and timeline",
+        "description": "Internal stage names/rejection reasons are hidden: rejected stages show as \"Not selected\".\n\n**Roles allowed:** CANDIDATE.",
+        "operationId": "myApplications",
+        "responses": {
+          "200": {
+            "description": "Applications",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "allOf": [
+                      {
+                        "$ref": "#/components/schemas/Application"
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "job": {
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string"
+                              },
+                              "title": {
+                                "type": "string"
+                              },
+                              "location": {
+                                "type": "string",
+                                "nullable": true
+                              },
+                              "org": {
+                                "type": "object",
+                                "properties": {
+                                  "name": {
+                                    "type": "string"
+                                  }
+                                }
+                              }
+                            }
+                          },
+                          "statusLabel": {
+                            "type": "string"
+                          },
+                          "timeline": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "at": {
+                                  "type": "string",
+                                  "format": "date-time"
+                                },
+                                "label": {
+                                  "type": "string"
+                                }
+                              }
+                            }
+                          },
+                          "interviews": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "id": {
+                                  "type": "string"
+                                },
+                                "title": {
+                                  "type": "string"
+                                },
+                                "scheduledAt": {
+                                  "type": "string",
+                                  "format": "date-time"
+                                },
+                                "durationMin": {
+                                  "type": "integer"
+                                },
+                                "mode": {
+                                  "type": "string"
+                                },
+                                "locationOrLink": {
+                                  "type": "string",
+                                  "nullable": true
+                                },
+                                "status": {
+                                  "type": "string"
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "security": [
+          {
+            "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/me/applications/{id}/withdraw": {
+      "post": {
+        "tags": [
+          "Candidate"
+        ],
+        "summary": "Withdraw an application",
+        "description": "**Roles allowed:** CANDIDATE.",
+        "operationId": "withdraw",
+        "responses": {
+          "200": {
+            "description": "Application with status WITHDRAWN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Application"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          }
+        },
+        "security": [
+          {
+            "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Resource id"
+          }
+        ]
+      }
+    },
+    "/me/notifications": {
+      "get": {
+        "tags": [
+          "Candidate"
+        ],
+        "summary": "My latest 50 notifications",
+        "description": "**Roles allowed:** CANDIDATE.",
+        "operationId": "notifications",
+        "responses": {
+          "200": {
+            "description": "Notifications",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Notification"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        },
+        "security": [
+          {
+            "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/me/notifications/read": {
+      "post": {
+        "tags": [
+          "Candidate"
+        ],
+        "summary": "Mark all notifications read",
+        "description": "**Roles allowed:** CANDIDATE.",
+        "operationId": "readNotifications",
+        "responses": {
+          "204": {
+            "description": "No content"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        },
+        "security": [
+          {
+            "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/me/consents": {
+      "get": {
+        "tags": [
+          "Candidate"
+        ],
+        "summary": "My consent records (USP H)",
+        "description": "**Roles allowed:** CANDIDATE.",
+        "operationId": "listConsents",
+        "responses": {
+          "200": {
+            "description": "Consents",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Consent"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        },
+        "security": [
+          {
+            "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "Candidate"
+        ],
+        "summary": "Grant or withdraw an optional consent",
+        "description": "**Roles allowed:** CANDIDATE.",
+        "operationId": "setConsent",
+        "responses": {
+          "200": {
+            "description": "Updated consent list",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Consent"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        },
+        "security": [
+          {
+            "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "enum": [
+                      "TALENT_POOL",
+                      "MARKETING"
+                    ]
+                  },
+                  "granted": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "type",
+                  "granted"
+                ]
+              },
+              "example": {
+                "type": "TALENT_POOL",
+                "granted": false
+              }
+            }
+          }
+        }
+      }
+    },
+    "/me/export": {
+      "get": {
+        "tags": [
+          "Candidate"
+        ],
+        "summary": "Download all my data as JSON (access request)",
+        "description": "Served with Content-Disposition: attachment; filename=\"my-data.json\". Audited as DATA_EXPORT.\n\n**Roles allowed:** CANDIDATE.",
+        "operationId": "exportData",
+        "responses": {
+          "200": {
+            "description": "Export",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "description": "exportedAt, user fields, consents, notifications, dataRequests, profile (resume metadata, applications, answers, transitions, interviews) and email subjects"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        },
+        "security": [
+          {
+            "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/me/data-requests": {
+      "get": {
+        "tags": [
+          "Candidate"
+        ],
+        "summary": "My data (deletion) requests",
+        "description": "**Roles allowed:** CANDIDATE.",
+        "operationId": "myDataRequests",
+        "responses": {
+          "200": {
+            "description": "Requests",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/DataRequest"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        },
+        "security": [
+          {
+            "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "Candidate"
+        ],
+        "summary": "Request deletion of my data",
+        "description": "**Roles allowed:** CANDIDATE.",
+        "operationId": "requestDeletion",
+        "responses": {
+          "201": {
+            "description": "Created PENDING request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DataRequest"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "409": {
+            "description": "A pending request exists",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": "You already have a pending deletion request"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "reason": {
+                    "type": "string",
+                    "maxLength": 500
+                  }
+                }
+              },
+              "example": {
+                "reason": "Please delete my data"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/applications/{id}": {
+      "get": {
+        "tags": [
+          "Applications"
+        ],
+        "summary": "Full application detail",
+        "description": "Includes job stages, answers, transition history, approvals, interviews with panel/scorecards, notes (with author name) and email log. Hiring managers are limited to their jobs (403).\n\n**Roles allowed:** EMPLOYER, RECRUITER, HIRING_MANAGER.",
+        "operationId": "getApplication",
+        "responses": {
+          "200": {
+            "description": "Application",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApplicationDetail"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "security": [
+          {
+            "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Resource id"
+          }
+        ]
+      }
+    },
+    "/applications/{id}/move": {
+      "post": {
+        "tags": [
+          "Applications"
+        ],
+        "summary": "Move application to another stage",
+        "description": "Returns **200** `{moved:true}` when moved, or **202** `{moved:false, approvalId}` when the target stage requires approval and the caller is not an authorised approver (a PENDING StageApproval is created or reused). EMPLOYER can always approve; otherwise caller role must equal the stage approverRole (HIRING_MANAGER must own the job). Optimistic lock: concurrent move -> 409. 400 if stage is from another job or is already the current stage; 409 if application is not ACTIVE.\n\n**Roles allowed:** EMPLOYER, RECRUITER, HIRING_MANAGER.",
+        "operationId": "moveApplication",
+        "responses": {
+          "200": {
+            "description": "Moved",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MovedResponse"
+                },
+                "example": {
+                  "moved": true,
+                  "application": {
+                    "id": "cmw7k5rj00040rspgapp0001",
+                    "jobId": "cmw7k5rge000krspg6rwrcpbq",
+                    "candidateId": "cmw7k5rh00010rspgcand001",
+                    "currentStageId": "cmw7k5rg6000brspgstage03",
+                    "resumeId": "cmw7k5rhq0030rspgresume01",
+                    "source": "LINKEDIN",
+                    "status": "ACTIVE",
+                    "rejectionReason": null,
+                    "appliedAt": "2026-10-20T09:10:00.000Z",
+                    "updatedAt": "2026-11-08T09:20:00.000Z"
+                  }
+                }
+              }
+            }
+          },
+          "202": {
+            "description": "Approval required; application NOT moved yet",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApprovalPendingResponse"
+                },
+                "example": {
+                  "moved": false,
+                  "approvalId": "cmw7k5rkb0050rspgappr001"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "description": "Application closed or concurrently modified",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": "Application was changed by someone else, refresh and retry"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Resource id"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MoveRequest"
+              },
+              "example": {
+                "toStageId": "cmw7k5rg6000brspgstage04",
+                "note": "Strong interview feedback"
+              },
+              "examples": {
+                "moved": {
+                  "summary": "Target stage has no approval gate (200)",
+                  "value": {
+                    "toStageId": "cmw7k5rg6000brspgstage03",
+                    "note": "Passed screening"
+                  }
+                },
+                "approval": {
+                  "summary": "Target is the Offer stage and caller is a RECRUITER (202)",
+                  "value": {
+                    "toStageId": "cmw7k5rg6000brspgoffer05",
+                    "note": "Great interviews, recommend offer"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/applications/{id}/reject": {
+      "post": {
+        "tags": [
+          "Applications"
+        ],
+        "summary": "Reject an application",
+        "description": "Moves to the job's REJECTED stage and stores the reason. Returns the same shape as move (200 moved / 202 if the rejected stage requires approval).\n\n**Roles allowed:** EMPLOYER, RECRUITER, HIRING_MANAGER.",
+        "operationId": "rejectApplication",
+        "responses": {
+          "200": {
+            "description": "Rejected",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MovedResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          }
+        },
+        "security": [
+          {
+            "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Resource id"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "reason": {
+                    "type": "string",
+                    "minLength": 3,
+                    "maxLength": 500
+                  }
+                },
+                "required": [
+                  "reason"
+                ]
+              },
+              "example": {
+                "reason": "Skills not a match for current needs"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/applications/{id}/notes": {
+      "post": {
+        "tags": [
+          "Applications"
+        ],
+        "summary": "Add an internal note",
+        "description": "**Roles allowed:** EMPLOYER, RECRUITER, HIRING_MANAGER.",
+        "operationId": "addNote",
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Note"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "security": [
+          {
+            "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Resource id"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "body": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 2000
+                  }
+                },
+                "required": [
+                  "body"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/applications/{id}/email": {
+      "post": {
+        "tags": [
+          "Applications"
+        ],
+        "summary": "Send a templated email to the candidate",
+        "description": "404 if the org has no template with that key. Delivery is fire-and-forget; status tracked in EmailLog.\n\n**Roles allowed:** EMPLOYER, RECRUITER.",
+        "operationId": "emailCandidate",
+        "responses": {
+          "202": {
+            "description": "Queued",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EmailLog"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "security": [
+          {
+            "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Resource id"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "templateKey": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "templateKey"
+                ]
+              },
+              "example": {
+                "templateKey": "stage_changed"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/applications/resumes/{resumeId}/url": {
+      "get": {
+        "tags": [
+          "Applications"
+        ],
+        "summary": "Signed URL for a candidate resume (audited)",
+        "description": "Caller must be able to see a job the resume was submitted to. Every view is written to the audit log (VIEW_RESUME).\n\n**Roles allowed:** EMPLOYER, RECRUITER, HIRING_MANAGER.",
+        "operationId": "staffResumeUrl",
+        "responses": {
+          "200": {
+            "description": "URL",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "url": {
+                      "type": "string",
+                      "format": "uri"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "security": [
+          {
+            "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "resumeId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Resource id"
+          }
+        ]
+      }
+    },
+    "/approvals": {
+      "get": {
+        "tags": [
+          "Approvals"
+        ],
+        "summary": "List stage approvals (USP G)",
+        "description": "Default status=PENDING. EMPLOYER sees all in the org; other roles see only approvals whose target stage approverRole equals their role (hiring managers also limited to their jobs).\n\n**Roles allowed:** EMPLOYER, RECRUITER, HIRING_MANAGER.",
+        "operationId": "listApprovals",
+        "responses": {
+          "200": {
+            "description": "Approvals",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "allOf": [
+                      {
+                        "$ref": "#/components/schemas/StageApproval"
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "targetStage": {
+                            "type": "object",
+                            "properties": {
+                              "name": {
+                                "type": "string"
+                              },
+                              "approverRole": {
+                                "$ref": "#/components/schemas/StaffRole",
+                                "nullable": true
+                              }
+                            }
+                          },
+                          "application": {
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string"
+                              },
+                              "job": {
+                                "type": "object",
+                                "properties": {
+                                  "id": {
+                                    "type": "string"
+                                  },
+                                  "title": {
+                                    "type": "string"
+                                  }
+                                }
+                              },
+                              "currentStage": {
+                                "type": "object",
+                                "properties": {
+                                  "name": {
+                                    "type": "string"
+                                  }
+                                }
+                              },
+                              "candidate": {
+                                "type": "object",
+                                "properties": {
+                                  "user": {
+                                    "type": "object",
+                                    "properties": {
+                                      "name": {
+                                        "type": "string"
+                                      }
+                                    }
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        },
+        "security": [
+          {
+            "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "PENDING",
+                "APPROVED",
+                "REJECTED"
+              ],
+              "default": "PENDING"
+            }
+          }
+        ]
+      }
+    },
+    "/approvals/{id}/decide": {
+      "post": {
+        "tags": [
+          "Approvals"
+        ],
+        "summary": "Approve or deny a pending stage move",
+        "description": "Only the configured approver (or EMPLOYER) may decide. If approved, the application is moved to the target stage immediately. 409 if already decided.\n\n**Roles allowed:** EMPLOYER, RECRUITER, HIRING_MANAGER.",
+        "operationId": "decideApproval",
+        "responses": {
+          "200": {
+            "description": "Decision",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "approved": {
+                      "type": "boolean"
+                    },
+                    "result": {
+                      "$ref": "#/components/schemas/MovedResponse",
+                      "nullable": true
+                    }
+                  }
+                },
+                "example": {
+                  "approved": true,
+                  "result": {
+                    "moved": true,
+                    "application": {
+                      "id": "cmw7k5rj00040rspgapp0001",
+                      "currentStageId": "cmw7k5rg6000brspgoffer05",
+                      "status": "ACTIVE"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "description": "Already decided",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": "This approval was already decided"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Resource id"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "approve": {
+                    "type": "boolean"
+                  },
+                  "comment": {
+                    "type": "string",
+                    "maxLength": 500
+                  }
+                },
+                "required": [
+                  "approve"
+                ]
+              },
+              "example": {
+                "approve": true,
+                "comment": "Approved, go ahead"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/applications/{id}/interviews": {
+      "post": {
+        "tags": [
+          "Interviews"
+        ],
+        "summary": "Schedule an interview",
+        "description": "Panel members must be active staff of your org (400 otherwise). Any panel member already in an overlapping SCHEDULED interview causes **409 double booking**. Application must be ACTIVE (else 409). Candidate is emailed (interview_scheduled).\n\n**Roles allowed:** EMPLOYER, RECRUITER, HIRING_MANAGER.",
+        "operationId": "scheduleInterview",
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Interview"
+                },
+                "example": {
+                  "id": "cmw7k5rmn0060rspginterv01",
+                  "applicationId": "cmw7k5rj00040rspgapp0001",
+                  "title": "Technical Interview",
+                  "scheduledAt": "2026-11-12T10:00:00.000Z",
+                  "durationMin": 60,
+                  "mode": "ONLINE",
+                  "locationOrLink": "https://meet.example.com/acme-tech",
+                  "status": "SCHEDULED",
+                  "createdAt": "2026-11-08T09:30:00.000Z",
+                  "panel": [
+                    {
+                      "interviewId": "cmw7k5rmn0060rspginterv01",
+                      "userId": "cmw7k5rg30006rspghm00001"
+                    },
+                    {
+                      "interviewId": "cmw7k5rmn0060rspginterv01",
+                      "userId": "cmw7k5rg30004rspg6k8vspt4"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "description": "Double booking, or application closed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "doubleBooking": {
+                    "summary": "Panel member busy",
+                    "value": {
+                      "error": "Double booking: Harini Manager already has an interview at that time"
+                    }
+                  },
+                  "closed": {
+                    "summary": "Application closed",
+                    "value": {
+                      "error": "Cannot schedule interviews for a closed application"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Application id"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InterviewCreate"
+              },
+              "example": {
+                "title": "Technical Interview",
+                "scheduledAt": "2026-11-12T10:00:00.000Z",
+                "durationMin": 60,
+                "mode": "ONLINE",
+                "locationOrLink": "https://meet.example.com/acme-tech",
+                "interviewerIds": [
+                  "cmw7k5rg30006rspghm00001",
+                  "cmw7k5rg30004rspg6k8vspt4"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/interviews/mine": {
+      "get": {
+        "tags": [
+          "Interviews"
+        ],
+        "summary": "My interview queue (contact details masked)",
+        "description": "Interviews where I am on the panel, excluding CANCELLED, soonest first, with job criteria and my own scorecard. Candidate email/phone are masked (e.g. a***@example.com).\n\n**Roles allowed:** EMPLOYER, RECRUITER, HIRING_MANAGER.",
+        "operationId": "myInterviews",
+        "responses": {
+          "200": {
+            "description": "Interviews",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "description": "Interview + scorecards (mine) + application{id,resumeId,job{id,title,criteria},candidate{name,skills,experienceYears,email(masked),phone(masked)}}"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        },
+        "security": [
+          {
+            "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/interviews/{id}": {
+      "patch": {
+        "tags": [
+          "Interviews"
+        ],
+        "summary": "Reschedule, edit or change status of an interview",
+        "description": "Re-checks double booking when time, duration or panel changes on a SCHEDULED interview (409). Replaces the panel when interviewerIds is given. Candidate is re-notified on reschedule.\n\n**Roles allowed:** EMPLOYER, RECRUITER, HIRING_MANAGER.",
+        "operationId": "updateInterview",
+        "responses": {
+          "200": {
+            "description": "Updated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Interview"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          }
+        },
+        "security": [
+          {
+            "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Resource id"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InterviewUpdate"
+              },
+              "example": {
+                "scheduledAt": "2026-11-13T11:00:00.000Z"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/interviews/{id}/scorecards": {
+      "post": {
+        "tags": [
+          "Interviews"
+        ],
+        "summary": "Submit (or overwrite) my scorecard",
+        "description": "Only assigned panel members (else 403). Interview must be SCHEDULED (409). `ratings` keys must equal the job criteria names exactly (400 with details.missing / details.extra). One scorecard per interviewer per interview: re-submitting updates it (still returns 201).\n\n**Roles allowed:** EMPLOYER, RECRUITER, HIRING_MANAGER.",
+        "operationId": "submitScorecard",
+        "responses": {
+          "201": {
+            "description": "Saved",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Scorecard"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          }
+        },
+        "security": [
+          {
+            "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Resource id"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ScorecardCreate"
+              },
+              "example": {
+                "ratings": {
+                  "Technical skills": 4,
+                  "Problem solving": 5,
+                  "Communication": 4,
+                  "Culture fit": 4
+                },
+                "comments": "Strong problem solver.",
+                "recommendation": "YES"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/reports/overview": {
+      "get": {
+        "tags": [
+          "Reports"
+        ],
+        "summary": "Headline counts",
+        "description": "**Roles allowed:** EMPLOYER, RECRUITER, HIRING_MANAGER.",
+        "operationId": "rptOverview",
+        "responses": {
+          "200": {
+            "description": "Counts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "total": {
+                      "type": "integer"
+                    },
+                    "active": {
+                      "type": "integer"
+                    },
+                    "hired": {
+                      "type": "integer"
+                    },
+                    "rejected": {
+                      "type": "integer"
+                    },
+                    "last7Days": {
+                      "type": "integer"
+                    },
+                    "upcomingInterviews": {
+                      "type": "integer"
+                    }
+                  }
+                },
+                "example": {
+                  "total": 36,
+                  "active": 25,
+                  "hired": 3,
+                  "rejected": 8,
+                  "last7Days": 0,
+                  "upcomingInterviews": 5
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        },
+        "security": [
+          {
+            "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "jobId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Restrict to one job"
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "description": "appliedAt >= from (an unparseable date currently yields 500)"
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "description": "appliedAt <= to"
+          }
+        ]
+      }
+    },
+    "/reports/time-to-stage": {
+      "get": {
+        "tags": [
+          "Reports"
+        ],
+        "summary": "Average days from application to reaching each stage",
+        "description": "Derived from StageTransition (excluding the initial \"applied\" transition). Grouped by stage name.\n\n**Roles allowed:** EMPLOYER, RECRUITER, HIRING_MANAGER.",
+        "operationId": "rptTimeToStage",
+        "responses": {
+          "200": {
+            "description": "Rows",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "stage": {
+                        "type": "string"
+                      },
+                      "order": {
+                        "type": "integer"
+                      },
+                      "avgDays": {
+                        "type": "number"
+                      },
+                      "candidates": {
+                        "type": "integer"
+                      }
+                    }
+                  }
+                },
+                "example": [
+                  {
+                    "stage": "Screening",
+                    "order": 1,
+                    "avgDays": 8.5,
+                    "candidates": 24
+                  },
+                  {
+                    "stage": "Interview",
+                    "order": 3,
+                    "avgDays": 19.2,
+                    "candidates": 10
+                  }
+                ]
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        },
+        "security": [
+          {
+            "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "jobId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Restrict to one job"
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "description": "appliedAt >= from (an unparseable date currently yields 500)"
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "description": "appliedAt <= to"
+          }
+        ]
+      }
+    },
+    "/reports/sources": {
+      "get": {
+        "tags": [
+          "Reports"
+        ],
+        "summary": "Applications and hires by source",
+        "description": "**Roles allowed:** EMPLOYER, RECRUITER, HIRING_MANAGER.",
+        "operationId": "rptSources",
+        "responses": {
+          "200": {
+            "description": "Rows",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "source": {
+                        "type": "string"
+                      },
+                      "count": {
+                        "type": "integer"
+                      },
+                      "hired": {
+                        "type": "integer"
+                      }
+                    }
+                  }
+                },
+                "example": [
+                  {
+                    "source": "JOB_BOARD",
+                    "count": 12,
+                    "hired": 1
+                  },
+                  {
+                    "source": "LINKEDIN",
+                    "count": 12,
+                    "hired": 2
+                  }
+                ]
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        },
+        "security": [
+          {
+            "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "jobId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Restrict to one job"
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "description": "appliedAt >= from (an unparseable date currently yields 500)"
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "description": "appliedAt <= to"
+          }
+        ]
+      }
+    },
+    "/reports/vacancies": {
+      "get": {
+        "tags": [
+          "Reports"
+        ],
+        "summary": "Job counts by status",
+        "description": "Filters (jobId/from/to) are ignored here.\n\n**Roles allowed:** EMPLOYER, RECRUITER, HIRING_MANAGER.",
+        "operationId": "rptVacancies",
+        "responses": {
+          "200": {
+            "description": "Rows",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "status": {
+                        "$ref": "#/components/schemas/JobStatus"
+                      },
+                      "count": {
+                        "type": "integer"
+                      }
+                    }
+                  }
+                },
+                "example": [
+                  {
+                    "status": "DRAFT",
+                    "count": 1
+                  },
+                  {
+                    "status": "PUBLISHED",
+                    "count": 2
+                  },
+                  {
+                    "status": "PAUSED",
+                    "count": 1
+                  },
+                  {
+                    "status": "CLOSED",
+                    "count": 1
+                  }
+                ]
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        },
+        "security": [
+          {
+            "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/reports/funnel": {
+      "get": {
+        "tags": [
+          "Reports"
+        ],
+        "summary": "Conversion funnel (share of applicants who ever reached each stage)",
+        "description": "Counts distinct applications with a StageTransition into each non-REJECTED stage, divided by total applications in scope. Stages are merged by name across jobs, so org-wide results mix pipelines; pass jobId for a single pipeline.\n\n**Roles allowed:** EMPLOYER, RECRUITER, HIRING_MANAGER.",
+        "operationId": "rptFunnel",
+        "responses": {
+          "200": {
+            "description": "Rows ordered by stage order",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/FunnelRow"
+                  }
+                },
+                "example": [
+                  {
+                    "stage": "Applied",
+                    "order": 0,
+                    "count": 36,
+                    "percent": 100
+                  },
+                  {
+                    "stage": "Screening",
+                    "order": 1,
+                    "count": 24,
+                    "percent": 66.7
+                  },
+                  {
+                    "stage": "Assessment",
+                    "order": 2,
+                    "count": 16,
+                    "percent": 44.4
+                  },
+                  {
+                    "stage": "Interview",
+                    "order": 3,
+                    "count": 10,
+                    "percent": 27.8
+                  },
+                  {
+                    "stage": "Offer",
+                    "order": 4,
+                    "count": 6,
+                    "percent": 16.7
+                  },
+                  {
+                    "stage": "Hired",
+                    "order": 5,
+                    "count": 3,
+                    "percent": 8.3
+                  }
+                ]
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        },
+        "security": [
+          {
+            "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "jobId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Restrict to one job"
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "description": "appliedAt >= from (an unparseable date currently yields 500)"
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "description": "appliedAt <= to"
+          }
+        ]
+      }
+    },
+    "/admin/org": {
+      "get": {
+        "tags": [
+          "Admin/Governance"
+        ],
+        "summary": "Organization settings",
+        "description": "**Roles allowed:** EMPLOYER, RECRUITER.",
+        "operationId": "getOrg",
+        "responses": {
+          "200": {
+            "description": "Org",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Organization"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        },
+        "security": [
+          {
+            "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ]
+      },
+      "patch": {
+        "tags": [
+          "Admin/Governance"
+        ],
+        "summary": "Update organization name / retention period (USP H)",
+        "description": "**Roles allowed:** EMPLOYER.",
+        "operationId": "updateOrg",
+        "responses": {
+          "200": {
+            "description": "Updated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Organization"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        },
+        "security": [
+          {
+            "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "minLength": 2
+                  },
+                  "retentionDays": {
+                    "type": "integer",
+                    "minimum": 30,
+                    "maximum": 3650
+                  }
+                }
+              },
+              "example": {
+                "retentionDays": 365
+              }
+            }
+          }
+        }
+      }
+    },
+    "/admin/retention/run": {
+      "post": {
+        "tags": [
+          "Admin/Governance"
+        ],
+        "summary": "Run the retention job now",
+        "description": "Anonymizes candidates whose every application in this org is REJECTED/WITHDRAWN and last updated before now - retentionDays.\n\n**Roles allowed:** EMPLOYER.",
+        "operationId": "runRetention",
+        "responses": {
+          "200": {
+            "description": "Result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "anonymized": {
+                      "type": "integer"
+                    },
+                    "cutoff": {
+                      "type": "string",
+                      "format": "date-time"
+                    }
+                  }
+                },
+                "example": {
+                  "anonymized": 0,
+                  "cutoff": "2026-05-12T09:00:00.000Z"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        },
+        "security": [
+          {
+            "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/admin/data-requests": {
+      "get": {
+        "tags": [
+          "Admin/Governance"
+        ],
+        "summary": "List data/deletion requests",
+        "description": "NOTE: not filtered by organization (all candidates).\n\n**Roles allowed:** EMPLOYER.",
+        "operationId": "listDataRequests",
+        "responses": {
+          "200": {
+            "description": "Requests",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "allOf": [
+                      {
+                        "$ref": "#/components/schemas/DataRequest"
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "user": {
+                            "type": "object",
+                            "properties": {
+                              "name": {
+                                "type": "string"
+                              },
+                              "email": {
+                                "type": "string"
+                              }
+                            }
+                          }
+                        }
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        },
+        "security": [
+          {
+            "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/admin/data-requests/{id}/decide": {
+      "post": {
+        "tags": [
+          "Admin/Governance"
+        ],
+        "summary": "Approve (anonymize) or reject a data request",
+        "description": "approve=true irreversibly anonymizes the candidate (PII wiped, resumes deleted, answers/notes deleted, account deactivated) but keeps application and stage history. Status becomes COMPLETED or REJECTED.\n\n**Roles allowed:** EMPLOYER.",
+        "operationId": "decideDataRequest",
+        "responses": {
+          "200": {
+            "description": "Updated request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DataRequest"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          }
+        },
+        "security": [
+          {
+            "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Resource id"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "approve": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "approve"
+                ]
+              },
+              "example": {
+                "approve": true
+              }
+            }
+          }
+        }
+      }
+    },
+    "/admin/audit-logs": {
+      "get": {
+        "tags": [
+          "Admin/Governance"
+        ],
+        "summary": "Search the audit trail",
+        "description": "**Roles allowed:** EMPLOYER, RECRUITER.",
+        "operationId": "auditLogs",
+        "responses": {
+          "200": {
+            "description": "Page of logs",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "page": {
+                      "type": "integer"
+                    },
+                    "pageSize": {
+                      "type": "integer"
+                    },
+                    "total": {
+                      "type": "integer"
+                    },
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/AuditLog"
+                      }
+                    }
+                  }
+                },
+                "example": {
+                  "page": 1,
+                  "pageSize": 20,
+                  "total": 1,
+                  "items": [
+                    {
+                      "id": "cmw7k5rn00070rspgaudit01",
+                      "actorId": "cmw7k5rg30004rspg6k8vspt4",
+                      "actorRole": "RECRUITER",
+                      "action": "MOVE_STAGE",
+                      "entityType": "Application",
+                      "entityId": "cmw7k5rj00040rspgapp0001",
+                      "before": null,
+                      "after": {
+                        "toStageId": "cmw7k5rg6000brspgstage03"
+                      },
+                      "ip": "::1",
+                      "createdAt": "2026-11-08T09:20:00.000Z",
+                      "actorName": "Rahul Recruiter"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        },
+        "security": [
+          {
+            "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "entityType",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "entityId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "actorId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "action",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 1
+            },
+            "description": "Page number"
+          },
+          {
+            "name": "pageSize",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20
+            },
+            "description": "Items per page (max 100)"
+          }
+        ]
+      }
+    },
+    "/admin/email-templates": {
+      "get": {
+        "tags": [
+          "Admin/Governance"
+        ],
+        "summary": "List email templates",
+        "description": "**Roles allowed:** EMPLOYER, RECRUITER, HIRING_MANAGER.",
+        "operationId": "listEmailTemplates",
+        "responses": {
+          "200": {
+            "description": "Templates",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/EmailTemplate"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        },
+        "security": [
+          {
+            "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/admin/email-templates/{key}": {
+      "put": {
+        "tags": [
+          "Admin/Governance"
+        ],
+        "summary": "Create or update an email template",
+        "description": "`key` must match ^[a-z_]{3,40}$. Handlebars variables: candidateName, jobTitle, stageName, companyName (+ interview vars).\n\n**Roles allowed:** EMPLOYER, RECRUITER.",
+        "operationId": "putEmailTemplate",
+        "responses": {
+          "200": {
+            "description": "Saved",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EmailTemplate"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        },
+        "security": [
+          {
+            "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "key",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Template key, e.g. stage_changed"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "minLength": 2
+                  },
+                  "subject": {
+                    "type": "string",
+                    "minLength": 2,
+                    "maxLength": 200
+                  },
+                  "bodyHtml": {
+                    "type": "string",
+                    "minLength": 5,
+                    "maxLength": 20000
+                  }
+                },
+                "required": [
+                  "name",
+                  "subject",
+                  "bodyHtml"
+                ]
+              },
+              "example": {
+                "name": "Stage update",
+                "subject": "Update on your {{jobTitle}} application",
+                "bodyHtml": "<p>Hi {{candidateName}}, you are now in {{stageName}}.</p>"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/admin/email-logs": {
+      "get": {
+        "tags": [
+          "Admin/Governance"
+        ],
+        "summary": "Email delivery log",
+        "description": "Returns a bare array (no total).\n\n**Roles allowed:** EMPLOYER, RECRUITER.",
+        "operationId": "emailLogs",
+        "responses": {
+          "200": {
+            "description": "Logs",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/EmailLog"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        },
+        "security": [
+          {
+            "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 1
+            },
+            "description": "Page number"
+          },
+          {
+            "name": "pageSize",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20
+            },
+            "description": "Items per page (max 100)"
+          }
+        ]
+      }
+    },
+    "/health": {
+      "get": {
+        "tags": [
+          "Public"
+        ],
+        "summary": "Liveness probe",
+        "description": "Mounted at `/api/health` (outside `/api/v1`). **Roles:** public.",
+        "operationId": "health",
+        "security": [],
+        "servers": [
+          {
+            "url": "http://localhost:4000/api"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean"
+                    }
+                  }
+                },
+                "example": {
+                  "ok": true
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
