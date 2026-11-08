@@ -9,6 +9,7 @@ import { badRequest, conflict, forbidden, notFound } from '../lib/http.js';
 import { putObject, signedUrl } from '../lib/storage.js';
 import { notifyCandidate } from '../lib/pipeline.js';
 import { exportCandidateData } from '../lib/governance.js';
+import { parseResume } from '../lib/resumeParser.js';
 import { POLICY_VERSION } from './auth.js';
 
 export const router = Router();
@@ -77,7 +78,22 @@ router.post('/resumes', upload.single('file'), async (req, res) => {
     data: { candidateId: profile.id, fileKey: key, fileName: req.file.originalname, mimeType: req.file.mimetype, size: req.file.size },
   });
   await audit(req, 'UPLOAD', 'Resume', resume.id);
-  res.status(201).json(resume);
+
+  // Resume parsing: add detected skills and fill empty profile fields; never overwrite what the candidate typed.
+  const parsed = req.file.mimetype === 'application/pdf' ? await parseResume(req.file.buffer) : null;
+  if (parsed?.text) {
+    await prisma.candidateProfile.update({
+      where: { id: profile.id },
+      data: {
+        skills: [...new Set([...profile.skills, ...parsed.skills])],
+        phone: profile.phone ?? parsed.phone,
+        location: profile.location ?? parsed.location,
+        linkedin: profile.linkedin ?? parsed.linkedin,
+        headline: profile.headline ?? parsed.headline,
+      },
+    });
+  }
+  res.status(201).json({ ...resume, parsedSkills: parsed?.skills ?? [] });
 });
 
 router.get('/resumes', async (req, res) => {

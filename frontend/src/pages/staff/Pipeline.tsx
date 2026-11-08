@@ -83,7 +83,9 @@ export function Pipeline() {
       <div className="-mx-4 overflow-x-auto px-4 pb-4 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8">
         <div className="flex gap-3">
           {stages.map((s) => {
-            const inStage = cards.filter((c) => c.currentStageId === s.id);
+            // best skill match first, so strong resumes surface at the top of each column
+            const score = (c: BoardCard) => skillMatch(c.candidate.skills, job.data?.skills ?? []) ?? -1;
+            const inStage = cards.filter((c) => c.currentStageId === s.id).sort((a, b) => score(b) - score(a));
             return (
               <section
                 key={s.id}
@@ -199,7 +201,7 @@ function KanbanCard({
       </div>
       {card.candidate.skills.length > 0 && (
         <div className="mt-2 flex flex-wrap gap-1">
-          {card.candidate.skills.slice(0, 3).map((s) => (
+          {[...card.candidate.skills].sort((a, b) => Number(jobSkills.includes(b)) - Number(jobSkills.includes(a))).slice(0, 3).map((s) => (
             <span key={s} className={cx('rounded-full px-2 py-0.5 text-[11px]', jobSkills.includes(s) ? 'bg-slate-900 text-white' : 'bg-black/5 text-slate-600')}>{s}</span>
           ))}
         </div>
