@@ -50,7 +50,7 @@ cd ../frontend && npm install && npm run dev  # web on :5173 (proxies /api)
 ```
 backend/   Express API (src/routes, src/lib), prisma/ (schema, migrations, seed), tests/
 frontend/  React app
-docs/      API.md, DATABASE.md (ER diagram), PHASES.md (build phases + bottleneck analysis)
+docs/      WORKFLOW.md, TESTING.md, API.md, DATABASE.md (ER diagram), PHASES.md (bottleneck analysis)
 ```
 
 ## Tests
@@ -68,4 +68,4 @@ cd frontend && npm test
 - Uploads are limited by MIME and size, and files are served only through 5-minute presigned URLs.
 - There are no secrets in Git. `.env` is ignored and `.env.example` documents every variable.
 
-See [docs/API.md](docs/API.md), [docs/DATABASE.md](docs/DATABASE.md) and [docs/PHASES.md](docs/PHASES.md).
+See [docs/WORKFLOW.md](docs/WORKFLOW.md) (codebase workflow), [docs/TESTING.md](docs/TESTING.md) (test workflow), [docs/API.md](docs/API.md), [docs/DATABASE.md](docs/DATABASE.md) and [docs/PHASES.md](docs/PHASES.md).
