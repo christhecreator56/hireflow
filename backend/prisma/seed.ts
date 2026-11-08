@@ -3,6 +3,10 @@ import bcrypt from 'bcryptjs';
 import { PrismaClient, type Role } from '@prisma/client';
 import { DEFAULT_CRITERIA, DEFAULT_STAGES, stageData } from '../src/lib/pipeline.js';
 import { ensureBucket, putObject } from '../src/lib/storage.js';
+import { existsSync } from 'node:fs';
+import { resolve } from 'node:path';
+import { resumeFiles } from './import-resumes.js';
+import { seedFromResumes } from './resume-pipeline.js';
 
 const prisma = new PrismaClient();
 // Demo-only password shared by every seeded account (documented in README).
@@ -105,6 +109,10 @@ async function main() {
       skills: ['SQL', 'Python'], status: 'CLOSED', hm: hm2, stages: DEFAULT_STAGES, age: 60 },
     { title: 'DevOps Engineer', department: 'Platform', location: 'Chennai', employmentType: 'FULL_TIME', salaryMin: 1500000, salaryMax: 2400000,
       skills: ['Docker', 'AWS', 'Kubernetes'], status: 'DRAFT', hm: hm, stages: DEFAULT_STAGES, age: 2 },
+    { title: 'Backend Developer Intern', department: 'Engineering', location: 'Chennai', employmentType: 'INTERNSHIP', salaryMin: 25000, salaryMax: 40000,
+      skills: ['Python', 'Java', 'SQL', 'REST APIs'], status: 'PUBLISHED', hm: hm2, stages: internStages, age: 32 },
+    { title: 'ML Engineer Intern', department: 'AI Research', location: 'Chennai', employmentType: 'INTERNSHIP', salaryMin: 30000, salaryMax: 45000,
+      skills: ['Python', 'Machine Learning', 'Pandas', 'SQL'], status: 'PUBLISHED', hm: hm2, stages: DEFAULT_STAGES, age: 30 },
   ] as const;
 
   const jobs = [];
@@ -131,6 +139,28 @@ async function main() {
       include: { stages: { orderBy: { order: 'asc' } }, questions: { orderBy: { order: 'asc' } } },
     });
     jobs.push({ ...job, age: d.age });
+  }
+
+  // Real resumes (gitignored ../import/resumes) replace the generated candidates when present.
+  const resumeDir = resolve(process.env.RESUMES_DIR ?? '../import/resumes');
+  if (!process.env.SEED_FAKE && existsSync(resumeDir) && resumeFiles(resumeDir).length) {
+    console.log(`Building candidates from real resumes in ${resumeDir}…`);
+    await seedFromResumes(prisma, {
+      dir: resumeDir,
+      jobs: jobs.filter((j) => j.status === 'PUBLISHED'),
+      recruiters: [recruiter, recruiter2],
+      employer,
+      passwordHash: hash,
+    });
+    await prisma.auditLog.createMany({
+      data: jobs.map((j) => ({ actorId: recruiter.id, actorRole: 'RECRUITER', action: 'CREATE', entityType: 'Job', entityId: j.id, createdAt: j.createdAt })),
+    });
+    console.log('Seed complete', {
+      users: await prisma.user.count(), jobs: await prisma.job.count(), applications: await prisma.application.count(),
+      interviews: await prisma.interview.count(), scorecards: await prisma.scorecard.count(),
+    });
+    console.log(`Logins (password ${DEMO_PASSWORD}): employer@acme.test, recruiter@acme.test, manager@acme.test, manager2@acme.test, candidate@acme.test; every candidate can also log in with the email on their resume`);
+    return;
   }
 
   // Candidates

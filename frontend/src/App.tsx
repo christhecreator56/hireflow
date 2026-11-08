@@ -34,11 +34,12 @@ export function App() {
   return (
     <Routes>
       <Route path="/" element={<Home />} />
+      {/* full-screen auth pages: no site header */}
+      <Route path="/login" element={<Login />} />
+      <Route path="/register" element={<Register />} />
       <Route element={<PublicLayout />}>
         <Route path="/jobs" element={<JobBoard />} />
         <Route path="/jobs/:id" element={<JobDetail />} />
-        <Route path="/login" element={<Login />} />
-        <Route path="/register" element={<Register />} />
         <Route path="/portal/*" element={<RequireRole roles={['CANDIDATE']}><Portal /></RequireRole>} />
       </Route>
       <Route element={staff(<StaffLayout />)}>

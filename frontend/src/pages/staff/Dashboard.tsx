@@ -199,7 +199,7 @@ export function Dashboard() {
             <path d="M3 5h18l-7 8v6l-4-2v-4z" />
           </svg>
         </span>
-        <div className="flex min-w-0 flex-1 gap-1 overflow-x-auto pb-1">
+        <div className="flex min-w-0 flex-1 gap-1 overflow-x-auto pb-1 [scrollbar-width:none]">
           {[{ id: '', title: 'All vacancies' }, ...(jobs.data ?? [])].map((j) => (
             <button
               key={j.id}

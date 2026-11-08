@@ -2,7 +2,8 @@ import { useState, type FormEvent } from 'react';
 import { Link, Navigate, useNavigate, useSearchParams } from 'react-router';
 import { fieldError } from '../lib/api';
 import { homeFor, useAuth, type User } from '../lib/auth';
-import { Button, Card, Checkbox, ErrorBox, Input } from '../components/ui';
+import { Spinner } from '../components/ui';
+import { AuthShell, DarkCheck, DarkError, DarkInput, primaryPill } from '../components/AuthShell';
 
 const DEMO = [
   { email: 'employer@acme.test', role: 'Employer' },
@@ -23,6 +24,14 @@ function useAfterAuth() {
   };
 }
 
+const Divider = ({ children }: { children: string }) => (
+  <div className="my-6 flex items-center gap-4 text-xs text-white/50">
+    <span className="h-px flex-1 bg-white/20" />
+    {children}
+    <span className="h-px flex-1 bg-white/20" />
+  </div>
+);
+
 export function Login() {
   const { user, login } = useAuth();
   const after = useAfterAuth();
@@ -30,81 +39,96 @@ export function Login() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<unknown>(null);
-  const [busy, setBusy] = useState(false);
+  const [busy, setBusy] = useState<string | false>(false);
   if (user && !busy) return <Navigate to={homeFor(user)} replace />;
 
-  const submit = async (e: FormEvent) => {
-    e.preventDefault();
-    setBusy(true);
+  const signIn = async (em: string, pw: string, who = 'form') => {
+    setBusy(who);
     setError(null);
     try {
-      after(await login(email, password));
+      after(await login(em, pw));
     } catch (err) {
       setError(err);
       setBusy(false);
     }
   };
+  const submit = (e: FormEvent) => {
+    e.preventDefault();
+    signIn(email, password);
+  };
 
   return (
-    <div className="mx-auto max-w-md">
-      <h1 className="mb-1 text-2xl font-semibold tracking-tight text-slate-900">Welcome back</h1>
-      <p className="mb-6 text-sm text-slate-500">Log in to manage hiring or track your applications.</p>
-      <Card>
-        <form onSubmit={submit} className="space-y-4">
-          <ErrorBox error={error} />
-          <Input label="Email" type="email" autoComplete="email" required value={email} onChange={(e) => setEmail(e.target.value)} error={fieldError(error, 'email')} />
-          <Input label="Password" type="password" autoComplete="current-password" required value={password} onChange={(e) => setPassword(e.target.value)} error={fieldError(error, 'password')} />
-          <Button type="submit" className="w-full" loading={busy}>
-            Log in
-          </Button>
-        </form>
-        <p className="mt-4 text-center text-sm text-slate-500">
-          New candidate?{' '}
-          <Link to={`/register${params.get('next') ? `?next=${encodeURIComponent(params.get('next')!)}` : ''}`} className="font-medium text-indigo-600 hover:underline">
-            Create an account
-          </Link>
-        </p>
-      </Card>
-      <div className="mt-6 rounded-xl bg-indigo-50/60 p-4 ring-1 ring-indigo-100">
-        <p className="mb-2 text-xs font-semibold tracking-wide text-indigo-900 uppercase">Demo accounts</p>
-        <div className="grid grid-cols-2 gap-2">
-          {DEMO.map((d) => (
-            <button
-              key={d.email}
-              type="button"
-              onClick={() => {
-                setEmail(d.email);
-                setPassword(DEMO_PASSWORD);
-              }}
-              className="rounded-lg bg-white px-3 py-2 text-left text-sm shadow-sm ring-1 ring-slate-200 hover:ring-indigo-300"
-            >
-              <span className="block font-medium text-slate-900">{d.role}</span>
-              <span className="block truncate text-xs text-slate-500">{d.email}</span>
-            </button>
-          ))}
-        </div>
-        <p className="mt-2 text-xs text-indigo-900/70">Password for all: {DEMO_PASSWORD}</p>
+    <AuthShell
+      word="WELCOME"
+      title={
+        <>
+          Hello!
+          <br />
+          Good to see you again :)
+        </>
+      }
+      subtitle="Log in to manage hiring or follow your applications."
+    >
+      <p className="mb-3 pl-1 text-xs text-white/60">One-click demo accounts</p>
+      <div className="grid grid-cols-2 gap-2">
+        {DEMO.map((d) => (
+          <button
+            key={d.email}
+            type="button"
+            disabled={!!busy}
+            onClick={() => signIn(d.email, DEMO_PASSWORD, d.email)}
+            title={`Log in as ${d.email}`}
+            className="flex items-center justify-center gap-2 rounded-full px-4 py-2.5 text-sm text-white ring-1 ring-white/25 transition hover:bg-white/10 hover:ring-white/50 disabled:opacity-50"
+          >
+            {busy === d.email && <Spinner className="size-3.5" />}
+            {d.role}
+          </button>
+        ))}
       </div>
-    </div>
+
+      <Divider>Or with email</Divider>
+
+      <form onSubmit={submit} className="space-y-4">
+        <DarkError error={error} />
+        <DarkInput label="Email address" type="email" autoComplete="email" required value={email} onChange={(e) => setEmail(e.target.value)} error={fieldError(error, 'email')} />
+        <DarkInput label="Password" type="password" autoComplete="current-password" required value={password} onChange={(e) => setPassword(e.target.value)} error={fieldError(error, 'password')} />
+        <div className="flex flex-wrap items-center justify-between gap-4 pt-2">
+          <button type="submit" disabled={!!busy} className={primaryPill}>
+            {busy === 'form' && <Spinner className="size-4" />}
+            Log in
+          </button>
+          <p className="text-sm text-white/60">
+            New here?{' '}
+            <Link to={`/register${params.get('next') ? `?next=${encodeURIComponent(params.get('next')!)}` : ''}`} className="text-white underline underline-offset-4 hover:text-indigo-300">
+              Create an account
+            </Link>
+          </p>
+        </div>
+      </form>
+      <p className="mt-6 pl-1 text-xs text-white/40">Demo password for every account: {DEMO_PASSWORD}</p>
+    </AuthShell>
   );
 }
 
 export function Register() {
   const { user, register } = useAuth();
   const after = useAfterAuth();
-  const [form, setForm] = useState({ name: '', email: '', password: '', consent: false, talentPoolConsent: false });
+  const [form, setForm] = useState({ name: '', email: '', password: '', confirm: '', consent: false, talentPoolConsent: false });
   const [error, setError] = useState<unknown>(null);
   const [busy, setBusy] = useState(false);
   if (user && !busy) return <Navigate to={homeFor(user)} replace />;
   const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement>) =>
     setForm({ ...form, [k]: e.target.type === 'checkbox' ? e.target.checked : e.target.value });
+  const mismatch = form.confirm.length > 0 && form.confirm !== form.password;
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
+    if (mismatch) return;
     setBusy(true);
     setError(null);
     try {
-      after(await register(form));
+      const { confirm: _c, ...body } = form;
+      after(await register(body));
     } catch (err) {
       setError(err);
       setBusy(false);
@@ -112,34 +136,61 @@ export function Register() {
   };
 
   return (
-    <div className="mx-auto max-w-md">
-      <h1 className="mb-1 text-2xl font-semibold tracking-tight text-slate-900">Create your candidate account</h1>
-      <p className="mb-6 text-sm text-slate-500">Apply to jobs and follow every step of your application.</p>
-      <Card>
-        <form onSubmit={submit} className="space-y-4">
-          <ErrorBox error={error} />
-          <Input label="Full name" required value={form.name} onChange={set('name')} error={fieldError(error, 'name')} />
-          <Input label="Email" type="email" required value={form.email} onChange={set('email')} error={fieldError(error, 'email')} />
-          <Input label="Password" type="password" required minLength={8} hint="At least 8 characters" value={form.password} onChange={set('password')} error={fieldError(error, 'password')} />
-          <Checkbox
+    <AuthShell
+      word="JOIN US"
+      title={
+        <>
+          Hello!
+          <br />
+          We are glad to see you :)
+        </>
+      }
+      subtitle="Create a candidate account to apply and track every step."
+    >
+      <form onSubmit={submit} className="space-y-4">
+        <DarkError error={error} />
+        <div className="grid gap-4 sm:grid-cols-2">
+          <DarkInput label="Name" autoComplete="name" required value={form.name} onChange={set('name')} error={fieldError(error, 'name')} />
+          <DarkInput label="Email address" type="email" autoComplete="email" required value={form.email} onChange={set('email')} error={fieldError(error, 'email')} />
+          <DarkInput
+            label="Password"
+            type="password"
+            autoComplete="new-password"
             required
-            checked={form.consent}
-            onChange={set('consent')}
-            label={<>I agree to the processing of my personal data under the privacy policy (required).</>}
+            minLength={8}
+            placeholder="8+ characters"
+            value={form.password}
+            onChange={set('password')}
+            error={fieldError(error, 'password')}
           />
-          {fieldError(error, 'consent') && <p className="text-xs text-red-600">{fieldError(error, 'consent')}</p>}
-          <Checkbox checked={form.talentPoolConsent} onChange={set('talentPoolConsent')} label="Keep my profile in the talent pool for future openings (optional)." />
-          <Button type="submit" className="w-full" loading={busy}>
-            Create account
-          </Button>
-        </form>
-        <p className="mt-4 text-center text-sm text-slate-500">
-          Already registered?{' '}
-          <Link to="/login" className="font-medium text-indigo-600 hover:underline">
-            Log in
-          </Link>
-        </p>
-      </Card>
-    </div>
+          <DarkInput
+            label="Repeat password"
+            type="password"
+            autoComplete="new-password"
+            required
+            value={form.confirm}
+            onChange={set('confirm')}
+            error={mismatch ? 'Passwords do not match' : undefined}
+          />
+        </div>
+        <div className="space-y-3 pt-2">
+          <DarkCheck required checked={form.consent} onChange={set('consent')} label="I agree to the processing of my personal data under the privacy policy." />
+          {fieldError(error, 'consent') && <p className="pl-8 text-xs text-red-300">{fieldError(error, 'consent')}</p>}
+          <DarkCheck checked={form.talentPoolConsent} onChange={set('talentPoolConsent')} label="Keep my profile in the talent pool for future openings (optional)." />
+        </div>
+        <div className="flex flex-wrap items-center justify-between gap-4 pt-3">
+          <button type="submit" disabled={busy || mismatch} className={primaryPill}>
+            {busy && <Spinner className="size-4" />}
+            Sign up
+          </button>
+          <p className="text-sm text-white/60">
+            Already registered?{' '}
+            <Link to="/login" className="text-white underline underline-offset-4 hover:text-indigo-300">
+              Log in
+            </Link>
+          </p>
+        </div>
+      </form>
+    </AuthShell>
   );
 }

@@ -22,6 +22,10 @@ npm run dev                                   # API on :4000
 cd ../frontend && npm install && npm run dev  # web on :5173 (proxies /api)
 ```
 
+## Demo data from real resumes
+
+If a folder of PDF resumes exists at `import/resumes/` (gitignored, never committed), `npm run db:seed` turns every resume into a candidate: it parses contact details and skills, stores the original PDF, applies each person to their best-fit open job, and moves them through that pipeline by skill match (hired, offer awaiting approval, interviews with scorecards, assessments, rejections). Set `SEED_FAKE=1` to use generated candidates instead. Imported candidates log in with the email on their resume.
+
 ## Demo accounts (seeded; password `Password123!`)
 
 | Role | Email |
