@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from 'react';
-import { Link, NavLink } from 'react-router';
+import { Link, NavLink, useLocation } from 'react-router';
 import { ApiError, detailLines } from '../lib/api';
 import { cx } from './ui';
 
@@ -42,9 +42,9 @@ function Ridge({ y, color, count, minH, maxH, seed, wave = 18 }: { y: number; co
  * Uses /auth-scene.jpg instead when that file exists in frontend/public.
  * `band` = short strip anchored to the bottom (phones): no wave clip, no title.
  */
-function Scene({ word, band }: { word?: string; band?: boolean }) {
+export function Scene({ word, band, plain }: { word?: string; band?: boolean; plain?: boolean }) {
   const [photo, setPhoto] = useState(true);
-  const id = band ? 'band' : 'side'; // unique SVG ids: two scenes can share the page
+  const id = band ? 'band' : plain ? 'plain' : 'side'; // unique SVG ids: two scenes can share the page
   return (
     <svg viewBox="0 0 600 760" preserveAspectRatio={band ? 'xMidYMax slice' : 'xMidYMid slice'} className="absolute inset-0 h-full w-full" aria-hidden>
       <defs>
@@ -55,7 +55,7 @@ function Scene({ word, band }: { word?: string; band?: boolean }) {
         </linearGradient>
         {/* wavy right edge: the dark form panel shows through beyond it */}
         <clipPath id={`wave-${id}`}>
-          <path d={band ? 'M0 0 H600 V760 H0Z' : 'M0 0 H520 C470 90 600 170 560 270 C520 370 430 410 470 520 C505 615 590 660 545 760 H0 Z'} />
+          <path d={band || plain ? 'M0 0 H600 V760 H0Z' : 'M0 0 H520 C470 90 600 170 560 270 C520 370 430 410 470 520 C505 615 590 660 545 760 H0 Z'} />
         </clipPath>
       </defs>
       <g clipPath={`url(#wave-${id})`}>
@@ -92,17 +92,18 @@ function Scene({ word, band }: { word?: string; band?: boolean }) {
 
 /** Full-viewport auth card: split on desktop, form-over-forest on phones. Inner panel scrolls if a form is taller than the screen. */
 export function AuthShell({ word, title, subtitle, children }: { word: string; title: ReactNode; subtitle: string; children: ReactNode }) {
+  const { pathname } = useLocation();
   const tab = ({ isActive }: { isActive: boolean }) =>
     cx('rounded-full px-5 py-1.5 text-sm transition', isActive ? 'bg-white text-slate-900' : 'text-white/70 hover:text-white');
   return (
     <div className="h-dvh p-2 sm:p-4 lg:p-6">
-      <div className="flex h-full w-full flex-col overflow-hidden rounded-[28px] bg-[#1f1d1b] shadow-[0_40px_80px_-40px_rgb(27_26_24/.7)] sm:rounded-[36px] md:grid md:grid-cols-[1.05fr_1fr]">
+      <div className="ink fade-in flex h-full w-full flex-col overflow-hidden rounded-[28px] bg-[#1f1d1b] shadow-[0_40px_80px_-40px_rgb(27_26_24/.7)] sm:rounded-[36px] md:grid md:grid-cols-[1.05fr_1fr]">
         <div className="relative hidden md:block">
           <Scene word={word} />
         </div>
 
         <div className="flex min-h-0 flex-1 flex-col overflow-y-auto text-white [scrollbar-width:thin]">
-          <div className="my-auto w-full max-w-md self-center px-6 py-6 sm:px-10 sm:py-10 md:pl-6">
+          <div key={pathname} className="page-enter my-auto w-full max-w-md self-center px-6 py-6 sm:px-10 sm:py-10 md:pl-6">
             <div className="mb-6 flex items-center justify-between gap-3 sm:mb-8">
               <Link to="/" className="flex items-center gap-2" aria-label="HireFlow home">
                 <span className="grid size-8 place-items-center rounded-full bg-indigo-600">

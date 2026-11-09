@@ -4,6 +4,7 @@ import { useAuth, type Role } from '../lib/auth';
 import { label } from '../lib/format';
 import { Logo } from './PublicLayout';
 import { cx } from './ui';
+import { ThemeToggle } from './ThemeToggle';
 
 const ALL: Role[] = ['EMPLOYER', 'RECRUITER', 'HIRING_MANAGER'];
 type Item = { to: string; label: string; roles: Role[]; icon: string; primary?: boolean };
@@ -73,15 +74,19 @@ export function StaffLayout() {
           </nav>
 
           <div className="hidden items-center gap-1 rounded-full bg-white/40 p-1 backdrop-blur lg:flex">
-            <span className="px-4 text-sm text-slate-700">{org?.name}</span>
+            <ThemeToggle />
+            <span className="px-3 text-sm text-slate-700">{org?.name}</span>
             <button type="button" onClick={signOut} className="rounded-full bg-white px-5 py-2 text-sm text-slate-900 shadow-[0_6px_16px_-10px_rgb(27_26_24/.4)] hover:bg-slate-50">
               Log out
             </button>
           </div>
 
+          <div className="flex items-center gap-1 lg:hidden">
+            <ThemeToggle className="bg-white/60 backdrop-blur" />
           <button type="button" aria-label="Open menu" onClick={() => setOpen(true)} className="grid size-11 place-items-center rounded-full bg-white/60 text-slate-700 backdrop-blur lg:hidden">
             <Icon d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z" className="size-5" />
           </button>
+          </div>
         </div>
       </header>
 
@@ -110,7 +115,7 @@ export function StaffLayout() {
       {open && (
         <div className="fixed inset-0 z-40 lg:hidden">
           <div className="absolute inset-0 bg-slate-900/30 backdrop-blur-sm" onClick={() => setOpen(false)} />
-          <aside className="absolute inset-y-3 right-3 flex w-72 flex-col rounded-[28px] bg-[#f4f4f3] p-4 shadow-2xl">
+          <aside className="absolute inset-y-3 right-3 flex w-72 flex-col fade-in rounded-[28px] bg-[var(--panel)] p-4 shadow-2xl">
             <div className="mb-4 flex items-center justify-between">
               <Logo />
               <button type="button" aria-label="Close menu" onClick={() => setOpen(false)} className="grid size-9 place-items-center rounded-full bg-black/5 text-slate-500">
@@ -142,7 +147,7 @@ export function StaffLayout() {
         </div>
       )}
 
-      <main className="mx-auto max-w-[1400px] min-w-0 px-4 py-8 sm:px-6 lg:px-24 lg:py-10">
+      <main key={location.pathname} className="page-enter mx-auto max-w-[1400px] min-w-0 px-4 py-8 sm:px-6 lg:px-24 lg:py-10">
         <Outlet />
       </main>
     </div>

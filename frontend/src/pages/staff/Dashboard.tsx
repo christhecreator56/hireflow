@@ -34,20 +34,22 @@ function ArcChart({ tiers, caption }: { tiers: { label: string; value: number }[
             <stop offset="100%" stopColor="#e4472a" />
           </linearGradient>
           <pattern id="arc-hatch" width="7" height="7" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
-            <line x1="0" y1="0" x2="0" y2="7" stroke="#1b1a18" strokeOpacity=".16" strokeWidth="2" />
+            <line x1="0" y1="0" x2="0" y2="7" stroke="var(--hatch)" strokeWidth="2" />
           </pattern>
         </defs>
-        <path d={half(outer.r)} fill="url(#arc-hot)" />
-        <path d={half(mid.r)} fill="#ebebea" />
-        <path d={half(inner.r)} fill="#e3e2df" />
-        <path d={half(inner.r)} fill="url(#arc-hatch)" />
-        <line x1={x0 - 10} x2={x0 + 2 * maxR + 10} y1={base} y2={base} stroke="#cfcdca" />
+        <path d={half(outer.r)} fill="url(#arc-hot)" className="arc-grow" />
+        <path d={half(mid.r)} fill="var(--arc-mid)" className="arc-grow" style={{ animationDelay: '.15s' }} />
+        <g className="arc-grow" style={{ animationDelay: '.3s' }}>
+          <path d={half(inner.r)} fill="var(--arc-inner)" />
+          <path d={half(inner.r)} fill="url(#arc-hatch)" />
+        </g>
+        <line x1={x0 - 10} x2={x0 + 2 * maxR + 10} y1={base} y2={base} stroke="var(--arc-axis)" />
         {ticks.map((x) => (
-          <circle key={x} cx={x} cy={base} r={2} fill="#cfcdca" />
+          <circle key={x} cx={x} cy={base} r={2} fill="var(--arc-axis)" />
         ))}
         {[outer, mid, inner].map((t) => (
           <g key={t.label}>
-            <circle cx={x0 + t.r} cy={base - t.r} r={3.5} fill="#e4472a" stroke="#fff" strokeWidth={1.5} />
+            <circle cx={x0 + t.r} cy={base - t.r} r={3.5} fill="#e4472a" stroke="var(--color-white)" strokeWidth={1.5} className="fade-in" style={{ animationDelay: '.8s' }} />
             <text x={x0 + t.r} y={base - t.r - 12} textAnchor="middle" className="fill-slate-900 text-[18px] font-light">
               {t.value}
             </text>
@@ -60,8 +62,8 @@ function ArcChart({ tiers, caption }: { tiers: { label: string; value: number }[
       <figcaption className="mt-2 flex flex-wrap justify-center gap-4 text-xs text-slate-500">
         {[
           ['bg-indigo-600', outer.label],
-          ['bg-[#ebebea] ring-1 ring-black/10', mid.label],
-          ['hatch bg-[#e3e2df]', inner.label],
+          ['bg-[var(--arc-mid)] ring-1 ring-black/10', mid.label],
+          ['hatch bg-[var(--arc-inner)]', inner.label],
         ].map(([c, l]) => (
           <span key={l} className="flex items-center gap-1.5">
             <span className={cx('size-2.5 rounded-full', c)} />
@@ -80,7 +82,7 @@ function Accordion({ title, open, onToggle, children }: { title: string; open: b
         {title}
         <span className={cx('text-[10px] transition', open && 'rotate-180')}>▼</span>
       </button>
-      {open && <div className="px-5 pb-4 text-xs text-slate-600">{children}</div>}
+      {open && <div className="fade-in px-5 pb-4 text-xs text-slate-600">{children}</div>}
     </div>
   );
 }
@@ -141,12 +143,12 @@ export function Dashboard() {
               <span
                 key={s.source}
                 title={`${label(s.source)}: ${s.count}`}
-                className={cx('grid size-12 place-items-center rounded-full bg-white text-sm font-semibold text-slate-800 shadow-[0_6px_16px_-10px_rgb(27_26_24/.5)] ring-2 ring-[#e6e5e3]', i > 0 && '-ml-2')}
+                className={cx('grid size-12 place-items-center rounded-full bg-white text-sm font-semibold text-slate-800 shadow-[0_6px_16px_-10px_rgb(27_26_24/.5)] ring-2 ring-[var(--bg-top)]', i > 0 && '-ml-2')}
               >
                 {SOURCE_MARK[s.source] ?? s.source[0]}
               </span>
             ))}
-            <span title="Total applications" className="-ml-2 grid size-12 place-items-center rounded-full bg-white/50 text-xs text-slate-600 ring-2 ring-[#e6e5e3]">
+            <span title="Total applications" className="-ml-2 grid size-12 place-items-center rounded-full bg-white/50 text-xs text-slate-600 ring-2 ring-[var(--bg-top)]">
               {o?.total ?? 0}
             </span>
           </div>
@@ -226,7 +228,7 @@ export function Dashboard() {
         </div>
       </div>
 
-      <div ref={rail} className="-mx-4 flex snap-x gap-3 overflow-x-auto px-4 pb-4 [scrollbar-width:none] sm:-mx-6 sm:px-6 lg:-mx-24 lg:px-24">
+      <div ref={rail} className="stagger -mx-4 flex snap-x gap-3 overflow-x-auto px-4 pb-4 [scrollbar-width:none] sm:-mx-6 sm:px-6 lg:-mx-24 lg:px-24">
         {stageCards.length === 0 && !funnel.loading && <p className="text-sm text-slate-500">No pipeline activity yet.</p>}
         {stageCards.map((s, i) => (
           <article key={s.stage} className={cx('w-[300px] shrink-0 snap-start p-6', i === 0 ? 'surface-raised' : 'surface')}>

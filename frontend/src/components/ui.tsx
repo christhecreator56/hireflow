@@ -159,7 +159,7 @@ export function Modal({
         aria-modal="true"
         aria-label={title}
         onMouseDown={(e) => e.stopPropagation()}
-        className={cx('flex max-h-[92vh] w-full flex-col rounded-t-[28px] bg-[#f7f7f6] shadow-2xl sm:rounded-[28px]', wide ? 'sm:max-w-2xl' : 'sm:max-w-lg')}
+        className={cx('flex max-h-[92vh] w-full flex-col fade-in rounded-t-[28px] bg-[var(--panel)] shadow-2xl sm:rounded-[28px]', wide ? 'sm:max-w-2xl' : 'sm:max-w-lg')}
       >
         <header className="flex items-center justify-between px-6 pt-5 pb-2">
           <h2 className="text-lg font-medium text-slate-900">{title}</h2>
@@ -311,7 +311,7 @@ export function MatchRing({ value, size = 120, highlight, caption }: { value: nu
           strokeWidth={stroke}
           strokeLinecap="round"
           strokeDasharray={`${(v / 100) * c} ${c}`}
-          className={highlight ? 'stroke-indigo-600' : 'stroke-white'}
+          className={cx('ring-draw', highlight ? 'stroke-indigo-600' : 'stroke-[var(--ring-soft)]')}
           style={{ transition: 'stroke-dasharray .8s ease' }}
         />
       </svg>

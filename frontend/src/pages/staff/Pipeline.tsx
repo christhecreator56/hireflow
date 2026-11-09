@@ -81,7 +81,7 @@ export function Pipeline() {
       />
       <ErrorBox error={board.error} />
       <div className="-mx-4 overflow-x-auto px-4 pb-4 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8">
-        <div className="flex gap-3">
+        <div className="stagger flex gap-3">
           {stages.map((s) => {
             // best skill match first, so strong resumes surface at the top of each column
             const score = (c: BoardCard) => skillMatch(c.candidate.skills, job.data?.skills ?? []) ?? -1;

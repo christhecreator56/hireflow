@@ -3,6 +3,7 @@
 /*
  * Design system: warm light-gray canvas, one coral accent, soft frosted cards, pill controls.
  * The indigo/slate/sky scales are remapped so every existing utility picks up the new palette.
+ * Dark mode (html[data-theme=dark]) flips the same variables, so pages need no per-page dark styles.
  */
 @theme {
   --font-sans: 'Urbanist', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
@@ -41,19 +42,112 @@
   --color-coral: #e4472a;
 }
 
+/* Theme tokens that are not Tailwind colours. */
+:root {
+  --bg-top: #ebeae8;
+  --bg-mid: #dedddb;
+  --bg-bottom: #d8d7d5;
+  --surface: rgb(246 246 245 / 0.82);
+  --surface-raised: #fff;
+  --surface-edge: rgb(255 255 255 / 0.7);
+  --shadow: rgb(27 26 24 / 0.35);
+  --panel: #f7f7f6;
+  --ring-soft: #fff;
+  --arc-mid: #ebebea;
+  --arc-inner: #e3e2df;
+  --arc-axis: #cfcdca;
+  --hatch: rgb(27 26 24 / 0.16);
+  color-scheme: light;
+}
+
+:root[data-theme='dark'] {
+  --color-slate-50: #1a1917;
+  --color-slate-100: #22201e;
+  --color-slate-200: #2c2a27;
+  --color-slate-300: #3d3a36;
+  --color-slate-400: #87827b;
+  --color-slate-500: #8f8b85;
+  --color-slate-600: #b3afa9;
+  --color-slate-700: #cfcbc5;
+  --color-slate-800: #e4e1dc;
+  --color-slate-900: #f4f2ef;
+  --color-slate-950: #faf9f7;
+  /* white = raised surface, black overlays (bg-black/5) become light overlays */
+  --color-white: #282623;
+  --color-black: #ffffff;
+  --color-indigo-50: #3a1e17;
+  --color-indigo-100: #4a241b;
+  --color-indigo-200: #6b3022;
+  --color-indigo-700: #ff9a7e;
+  --color-indigo-800: #ffb39d;
+  --color-indigo-900: #ffc9b8;
+  --color-indigo-950: #ffe4db;
+  --color-sky-50: #2a2826;
+  --color-sky-200: #3d3a36;
+  --color-sky-500: #a8a49e;
+  --color-sky-700: #e4e1dc;
+  --color-emerald-50: #10291f;
+  --color-emerald-100: #16382a;
+  --color-emerald-200: #1f4a38;
+  --color-emerald-700: #6ee7b7;
+  --color-emerald-800: #a7f3d0;
+  --color-amber-50: #2e2410;
+  --color-amber-100: #3d3015;
+  --color-amber-200: #4d3d1b;
+  --color-amber-800: #fcd34d;
+  --color-red-50: #321514;
+  --color-red-100: #45201d;
+  --color-red-200: #5b2724;
+  --color-red-600: #f87171;
+  --color-red-700: #fca5a5;
+
+  --bg-top: #1c1a18;
+  --bg-mid: #171614;
+  --bg-bottom: #121110;
+  --surface: rgb(36 34 32 / 0.86);
+  --surface-raised: #2e2b28;
+  --surface-edge: rgb(255 255 255 / 0.05);
+  --shadow: rgb(0 0 0 / 0.6);
+  --panel: #22201e;
+  --ring-soft: #d0cbc4;
+  --arc-mid: #34312d;
+  --arc-inner: #2a2825;
+  --arc-axis: #4a4641;
+  --hatch: rgb(255 255 255 / 0.14);
+  color-scheme: dark;
+}
+
+/* Panels that are dark by design keep light-on-dark colours in both themes. */
+.ink {
+  --color-white: #fff;
+  --color-black: #000;
+  --color-slate-50: #f6f6f5;
+  --color-slate-100: #eeeeec;
+  --color-slate-200: #e3e2df;
+  --color-slate-300: #d0cecb;
+  --color-slate-400: #a4a29e;
+  --color-slate-500: #78756f;
+  --color-slate-600: #5b5954;
+  --color-slate-700: #44423e;
+  --color-slate-800: #2c2b28;
+  --color-slate-900: #1b1a18;
+  --color-indigo-300: #ffa186;
+  --color-indigo-700: #c0381f;
+}
+
 @utility surface {
   border-radius: 1.75rem;
-  background: rgb(246 246 245 / 0.82);
+  background: var(--surface);
   backdrop-filter: blur(12px);
   box-shadow:
-    inset 0 1px 0 rgb(255 255 255 / 0.7),
-    0 18px 40px -28px rgb(27 26 24 / 0.35);
+    inset 0 1px 0 var(--surface-edge),
+    0 18px 40px -28px var(--shadow);
 }
 
 @utility surface-raised {
   border-radius: 1.75rem;
-  background: #fff;
-  box-shadow: 0 24px 50px -30px rgb(27 26 24 / 0.4);
+  background: var(--surface-raised);
+  box-shadow: 0 24px 50px -30px var(--shadow);
 }
 
 @utility display {
@@ -65,7 +159,7 @@
 
 /* Hatched fill used by the inner arc of the hero chart. */
 @utility hatch {
-  background-image: repeating-linear-gradient(135deg, rgb(27 26 24 / 0.12) 0 1.5px, transparent 1.5px 7px);
+  background-image: repeating-linear-gradient(135deg, var(--hatch) 0 1.5px, transparent 1.5px 7px);
 }
 
 html,
@@ -74,10 +168,100 @@ body {
 }
 
 body {
-  background: linear-gradient(180deg, #ebeae8 0%, #dedddb 60%, #d8d7d5 100%) fixed;
+  background: linear-gradient(180deg, var(--bg-top) 0%, var(--bg-mid) 60%, var(--bg-bottom) 100%) fixed;
   color: var(--color-slate-800);
 }
 
 :focus-visible {
   outline-color: var(--color-coral);
+}
+
+/* ---------- Motion ---------- */
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+}
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes ring-draw {
+  from {
+    stroke-dasharray: 0 1000;
+  }
+}
+@keyframes grow-up {
+  from {
+    transform: scaleY(0);
+  }
+}
+@keyframes float {
+  50% {
+    transform: translateY(-6px);
+  }
+}
+
+/* Route change: content lifts in. */
+.page-enter {
+  animation: rise 0.45s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+
+/* Children cascade in one after another. */
+.stagger > * {
+  animation: rise 0.5s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+.stagger > :nth-child(2) { animation-delay: 0.06s; }
+.stagger > :nth-child(3) { animation-delay: 0.12s; }
+.stagger > :nth-child(4) { animation-delay: 0.18s; }
+.stagger > :nth-child(5) { animation-delay: 0.24s; }
+.stagger > :nth-child(6) { animation-delay: 0.3s; }
+.stagger > :nth-child(7) { animation-delay: 0.36s; }
+.stagger > :nth-child(n + 8) { animation-delay: 0.42s; }
+
+/* Sections fade up as they scroll into view (where scroll-driven animations exist). */
+@supports (animation-timeline: view()) {
+  .reveal {
+    animation: rise linear both;
+    animation-timeline: view();
+    animation-range: entry 0% cover 22%;
+  }
+}
+
+.fade-in {
+  animation: fade-in 0.35s ease both;
+}
+.float {
+  animation: float 5s ease-in-out infinite;
+}
+.ring-draw {
+  animation: ring-draw 1.1s cubic-bezier(0.3, 0.7, 0.2, 1) both;
+}
+.arc-grow {
+  transform-box: fill-box;
+  transform-origin: bottom;
+  animation: grow-up 0.9s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+/* Smooth colour swap while the theme toggles (class added briefly by the toggle). */
+.theme-swap,
+.theme-swap * {
+  transition:
+    background-color 0.35s ease,
+    color 0.35s ease,
+    border-color 0.35s ease,
+    fill 0.35s ease !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-delay: 0s !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }

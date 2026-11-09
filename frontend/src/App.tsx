@@ -6,6 +6,7 @@ import { StaffLayout } from './components/StaffLayout';
 import { Loading } from './components/ui';
 import { Login, Register } from './pages/Auth';
 import { JobBoard } from './pages/JobBoard';
+import { Landing } from './pages/Landing';
 import { JobDetail } from './pages/JobDetail';
 import { Portal } from './pages/portal/Portal';
 import { JobsAdmin } from './pages/staff/JobsAdmin';
@@ -25,7 +26,7 @@ const Dashboard = lazy(() => import('./pages/staff/Dashboard').then((m) => ({ de
 function Home() {
   const { user, loading } = useAuth();
   if (loading) return <Loading />;
-  return <Navigate to={user ? homeFor(user) : '/jobs'} replace />;
+  return user ? <Navigate to={homeFor(user)} replace /> : <Landing />;
 }
 
 const staff = (el: React.ReactNode, roles = STAFF) => <RequireRole roles={roles}>{el}</RequireRole>;
@@ -33,11 +34,11 @@ const staff = (el: React.ReactNode, roles = STAFF) => <RequireRole roles={roles}
 export function App() {
   return (
     <Routes>
-      <Route path="/" element={<Home />} />
       {/* full-screen auth pages: no site header */}
       <Route path="/login" element={<Login />} />
       <Route path="/register" element={<Register />} />
       <Route element={<PublicLayout />}>
+        <Route path="/" element={<Home />} />
         <Route path="/jobs" element={<JobBoard />} />
         <Route path="/jobs/:id" element={<JobDetail />} />
         <Route path="/portal/*" element={<RequireRole roles={['CANDIDATE']}><Portal /></RequireRole>} />
