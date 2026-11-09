@@ -1,0 +1,454 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>HireFlow: Project Report</title>
+<link href="https://fonts.googleapis.com/css2?family=Urbanist:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+<style>
+  @page { size: A4; margin: 16mm 15mm 18mm; }
+  * { box-sizing: border-box; }
+  body { font-family: 'Urbanist', 'Segoe UI', sans-serif; color: #2c2b28; font-size: 10.5pt; line-height: 1.55; margin: 0; }
+  h1, h2, h3 { color: #1b1a18; font-weight: 400; letter-spacing: -0.01em; }
+  h1 { font-size: 26pt; margin: 0 0 4mm; }
+  h2 { font-size: 18pt; margin: 0 0 3mm; padding-top: 2mm; }
+  h3 { font-size: 12.5pt; margin: 6mm 0 2mm; font-weight: 600; }
+  p { margin: 0 0 2.5mm; }
+  ul, ol { margin: 0 0 3mm; padding-left: 5mm; }
+  li { margin: 0.6mm 0; }
+  code { font-family: Consolas, monospace; font-size: 9pt; background: #f1f0ee; padding: 0.3mm 1.2mm; border-radius: 1mm; }
+  table { width: 100%; border-collapse: collapse; margin: 2mm 0 4mm; font-size: 9.5pt; }
+  th, td { text-align: left; padding: 1.6mm 2mm; border-bottom: 0.3mm solid #e3e2df; vertical-align: top; }
+  th { font-weight: 600; color: #5b5954; background: #f6f6f5; }
+  .section { page-break-before: always; }
+  .eyebrow { font-size: 8.5pt; letter-spacing: 0.14em; text-transform: uppercase; color: #c0381f; font-weight: 600; margin-bottom: 2mm; }
+  .lead { font-size: 12pt; color: #44423e; }
+  .muted { color: #78756f; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 5mm; }
+  .card { background: #f6f6f5; border-radius: 4mm; padding: 4mm 5mm; }
+  .card h3 { margin-top: 0; }
+  .shot { width: 100%; border-radius: 3mm; border: 0.3mm solid #e3e2df; display: block; margin: 2mm 0 1.5mm; }
+  .shot.tall { max-height: 150mm; object-fit: cover; object-position: top; }
+  .pair { display: grid; grid-template-columns: 1fr 1fr; gap: 4mm; }
+  .caption { font-size: 8.5pt; color: #78756f; margin-bottom: 3mm; }
+  .page { page-break-inside: avoid; margin-bottom: 6mm; }
+  .tag { display: inline-block; font-size: 8pt; padding: 0.4mm 2.2mm; border-radius: 10mm; background: #fff3ef; color: #c0381f; margin-right: 1mm; font-weight: 600; }
+  .flow { display: flex; flex-wrap: wrap; gap: 1.5mm; align-items: center; margin: 2mm 0 4mm; }
+  .flow span { background: #1f1d1b; color: #fff; border-radius: 10mm; padding: 1.2mm 3.5mm; font-size: 9pt; }
+  .flow b { color: #e4472a; font-weight: 600; }
+  .stat { font-size: 22pt; font-weight: 300; color: #1b1a18; line-height: 1; }
+  /* cover */
+  .cover { height: 263mm; display: flex; flex-direction: column; justify-content: space-between; background: linear-gradient(180deg, #e2834f, #f0a466 45%, #c43a2a 75%, #140707); border-radius: 6mm; padding: 16mm 14mm; color: #fff; position: relative; overflow: hidden; }
+  .cover h1 { color: #fff; font-size: 54pt; font-weight: 300; line-height: 0.95; text-transform: uppercase; letter-spacing: -0.03em; }
+  .cover .sun { position: absolute; top: 22mm; right: 22mm; width: 48mm; height: 48mm; border-radius: 50%; background: #f7d9c0; }
+  .cover .meta { font-size: 10.5pt; opacity: 0.92; }
+  .cover .logo { display: inline-flex; align-items: center; gap: 3mm; font-size: 14pt; font-weight: 600; }
+  .cover .logo i { width: 9mm; height: 9mm; border-radius: 50%; background: #e4472a; display: inline-block; box-shadow: 0 0 0 1.4mm rgba(255,255,255,.25); }
+  .toc li { display: flex; justify-content: space-between; border-bottom: 0.3mm dotted #d0cecb; padding: 1.2mm 0; list-style: none; }
+  .toc { padding: 0; }
+</style>
+</head>
+<body>
+
+<!-- COVER -->
+<div class="cover">
+  <div class="sun"></div>
+  <div class="logo"><i></i> HireFlow</div>
+  <div>
+    <div class="eyebrow" style="color:#fff3ec">ProEduvate · Full Stack · Round 2</div>
+    <h1>Recruitment &amp;<br/>Applicant<br/>Tracking System</h1>
+    <p class="lead" style="color:#fff; max-width:120mm; margin-top:6mm">Project report: problem understanding, architecture, technology choices, implementation, a page-by-page walkthrough, security, test results, limitations and future work.</p>
+  </div>
+  <div class="meta">
+    Christopher Jesuraj · Rajalakshmi Institute of Technology<br/>
+    Repository: github.com/christhecreator56/hireflow<br/>
+    November 2026
+  </div>
+</div>
+
+<!-- CONTENTS -->
+<div class="section">
+  <div class="eyebrow">Contents</div>
+  <h1>What's inside</h1>
+  <ol class="toc">
+    <li><span>1. Problem understanding</span></li>
+    <li><span>2. Solution overview &amp; roles</span></li>
+    <li><span>3. Architecture &amp; technology choices</span></li>
+    <li><span>4. How it was built: phases &amp; bottleneck analysis</span></li>
+    <li><span>5. End-to-end hiring workflow</span></li>
+    <li><span>6. Page-by-page walkthrough</span></li>
+    <li><span>7. The two USPs in depth</span></li>
+    <li><span>8. Data model</span></li>
+    <li><span>9. Resume parsing &amp; real-resume demo data</span></li>
+    <li><span>10. Security considerations</span></li>
+    <li><span>11. Testing &amp; results</span></li>
+    <li><span>12. Limitations &amp; future enhancements</span></li>
+    <li><span>13. Running the project</span></li>
+  </ol>
+  <div class="grid2" style="margin-top:8mm">
+    <div class="card"><div class="stat">21</div><p class="muted">database models with migrations and seed data</p></div>
+    <div class="card"><div class="stat">62</div><p class="muted">documented API operations (OpenAPI 3 / Swagger)</p></div>
+    <div class="card"><div class="stat">74 / 74</div><p class="muted">automated tests passing (67 backend + 7 frontend)</p></div>
+    <div class="card"><div class="stat">4</div><p class="muted">roles: employer, recruiter, hiring manager, candidate</p></div>
+  </div>
+</div>
+
+<!-- 1 + 2 -->
+<div class="section">
+  <div class="eyebrow">1 · Problem understanding</div>
+  <h2>What the brief asks for</h2>
+  <p>Organisations need one system to publish vacancies, collect applications, move candidates through recruitment stages, schedule interviews and record structured feedback. Every action must be traceable, and candidate information must be protected.</p>
+  <table>
+    <tr><th>Requirement</th><th>How HireFlow covers it</th></tr>
+    <tr><td>Employer, Recruiter, Hiring Manager, Candidate roles</td><td>Role-based access control in middleware plus a single resource-level access module; hiring managers are scoped to their own jobs in SQL</td></tr>
+    <tr><td>Job postings &amp; application forms</td><td>Job editor with a status machine (draft → published ⇄ paused → closed) and custom questions of five types</td></tr>
+    <tr><td>Candidate profiles, resume upload, tracking</td><td>Candidate portal, S3 resume storage, automatic resume parsing, application timeline</td></tr>
+    <tr><td>Pipeline with configurable stages</td><td>Per-vacancy stage list edited as data, Kanban board, approval gates</td></tr>
+    <tr><td>Interview scheduling &amp; evaluation forms</td><td>Panel scheduling with double-booking checks, 1–5 scorecards per job criterion</td></tr>
+    <tr><td>Templates &amp; notifications</td><td>Editable email templates, sandbox email provider (Mailpit), in-app notifications</td></tr>
+    <tr><td>Analytics &amp; audit history</td><td>Time-to-stage, sources, vacancy status, conversion funnel; append-only audit log</td></tr>
+    <tr><td>USP: configurable hiring workflow</td><td>Stages, notifications and approvals per vacancy, without code changes</td></tr>
+    <tr><td>USP: candidate data governance</td><td>Consent capture, role-limited access, retention, export and deletion workflows</td></tr>
+  </table>
+
+  <div class="eyebrow" style="margin-top:6mm">2 · Solution overview</div>
+  <h2>Who uses HireFlow</h2>
+  <div class="grid2">
+    <div class="card"><h3>Candidate</h3><p>Signs up with consent, uploads a resume that is parsed automatically, sees how well they match every role, applies, follows each stage on a timeline, and can export or delete their data.</p></div>
+    <div class="card"><h3>Recruiter</h3><p>Creates vacancies and their pipelines, screens and moves candidates on a Kanban board, schedules interviews, sends templated emails and reads analytics.</p></div>
+    <div class="card"><h3>Hiring manager</h3><p>Sees only the vacancies they own, sits on interview panels, submits scorecards, and approves stage moves (such as offers) that are gated to them.</p></div>
+    <div class="card"><h3>Employer</h3><p>Runs the organisation: team and roles, final approvals, retention policy, deletion requests and the full audit trail.</p></div>
+  </div>
+</div>
+
+<!-- 3 -->
+<div class="section">
+  <div class="eyebrow">3 · Architecture &amp; technology choices</div>
+  <h2>How the system is put together</h2>
+  <div class="flow"><span>React SPA</span><b>→ /api/v1 (cookie) →</b><span>Express API</span><b>→</b><span>PostgreSQL</span><b>·</b><span>S3 storage</span><b>·</b><span>Mailpit</span></div>
+  <p>The browser talks only to the API. The API owns all business rules and writes to PostgreSQL through Prisma. Resume files go to S3-compatible storage and are read through short-lived presigned links, so files never stream through the API. Emails are rendered from templates and handed to an SMTP sandbox without blocking the request. A nightly job runs the data-retention sweep.</p>
+  <table>
+    <tr><th>Layer</th><th>Choice</th><th>Why</th></tr>
+    <tr><td>Frontend</td><td>React 19 · TypeScript · Vite · Tailwind v4</td><td>Typed components, fast dev server; the design system lives in CSS variables, which also makes the dark theme possible</td></tr>
+    <tr><td>Backend</td><td>Node.js 22 · Express 5 · TypeScript · Zod</td><td>One language across the stack; Express 5 forwards async errors natively; Zod validates every request</td></tr>
+    <tr><td>Database</td><td>PostgreSQL 16 · Prisma</td><td>Relational integrity (unique, foreign-key and cascade rules), migrations and seed in one tool, raw SQL for analytics</td></tr>
+    <tr><td>Object storage</td><td>S3 API (SeaweedFS locally)</td><td>The same code runs against AWS S3 or Cloudflare R2; MinIO no longer publishes images, so SeaweedFS replaced it</td></tr>
+    <tr><td>Email</td><td>Nodemailer + Handlebars → Mailpit</td><td>Real SMTP flow in a sandbox; templates are editable data and HTML-escape their variables</td></tr>
+    <tr><td>Auth</td><td>bcrypt · JWT in httpOnly cookie · RBAC</td><td>The token can't be read by page scripts; roles are checked in middleware and records in a central access module</td></tr>
+    <tr><td>Quality</td><td>Vitest · Supertest · Testing Library · Swagger</td><td>Integration tests against a real database; API contract served as documentation</td></tr>
+    <tr><td>DevOps</td><td>Docker Compose · GitHub Actions</td><td>One command starts the stack; CI runs type checks and tests on every push</td></tr>
+  </table>
+  <h3>Backend design rules</h3>
+  <ul>
+    <li><b>Thin routes:</b> each one parses its input, authorizes, calls <code>lib/</code>, writes to the audit log and responds.</li>
+    <li><b>One way to change a stage:</b> <code>moveApplication()</code>. It checks that the stage belongs to the job, enforces the approval gate, uses an optimistic lock, writes the stage history and sends the notification.</li>
+    <li><b>One place for permissions:</b> <code>lib/access.ts</code>, which prevents users from opening other people's records by changing an ID.</li>
+    <li><b>Analytics from history:</b> <code>StageTransition</code> is append-only and every report is a single SQL aggregate.</li>
+  </ul>
+</div>
+
+<!-- 4 -->
+<div class="section">
+  <div class="eyebrow">4 · How it was built</div>
+  <h2>Phases &amp; bottleneck analysis</h2>
+  <p>Before writing code, we studied similar open-source applicant trackers (notably OpenCATS) and typical PERN job portals for known failure points, and designed against them from day one.</p>
+  <table>
+    <tr><th>Bottleneck seen elsewhere</th><th>Fix built into HireFlow</th></tr>
+    <tr><td>Candidate list queries examining 300k+ rows for 15 results (10–18 s page loads at 50k candidates)</td><td>Lean single-query Kanban data, composite indexes, pagination</td></tr>
+    <tr><td>Hard-coded pipeline stages</td><td>Stages and approval gates per vacancy, stored as data</td></tr>
+    <tr><td>Analytics computed in application memory</td><td>SQL aggregates over the append-only stage history</td></tr>
+    <tr><td>Email sending blocking the request</td><td>Queued email log, sent without awaiting, status updated afterwards</td></tr>
+    <tr><td>Resumes streamed through the server</td><td>5 MB MIME-checked upload to S3; 5-minute presigned downloads</td></tr>
+    <tr><td>Users reading others' records by changing an ID (IDOR)</td><td>Central access module plus tests that prove the 403s</td></tr>
+    <tr><td>Two recruiters moving the same card</td><td>Optimistic lock: a stale move returns 409 "refresh and retry"</td></tr>
+    <tr><td>Interviewer double-booking</td><td>Overlap check on every schedule and reschedule</td></tr>
+    <tr><td>Personal data kept forever</td><td>Consent records, retention sweep, anonymization</td></tr>
+  </table>
+  <h3>Build phases</h3>
+  <ol>
+    <li><b>Scaffold:</b> repository, Docker services (Postgres, S3 storage, mail sandbox), Prisma schema and migrations.</li>
+    <li><b>Auth &amp; RBAC:</b> login, cookies, roles, access module, audit trail.</li>
+    <li><b>Domain APIs:</b> jobs, candidate portal, pipeline engine, interviews, email, reports, governance.</li>
+    <li><b>Frontend:</b> every screen, built in parallel by a specialised sub-agent against the finished API.</li>
+    <li><b>Quality:</b> 67 backend tests and the API and database docs, each produced by its own sub-agent. Their reviews caught real bugs (a missing auth check, unvalidated query parameters, data requests not scoped to the organisation), which were fixed.</li>
+    <li><b>Product polish:</b> design system, landing page, full-screen auth, dark theme, animations, resume parsing, real-resume demo data.</li>
+  </ol>
+</div>
+
+<!-- 5 -->
+<div class="section">
+  <div class="eyebrow">5 · End-to-end workflow</div>
+  <h2>From vacancy to hire</h2>
+  <div class="flow"><span>Recruiter publishes job</span><b>→</b><span>Candidate signs up + uploads resume</span><b>→</b><span>Applies</span><b>→</b><span>Screening</span><b>→</b><span>Interview + scorecards</span><b>→</b><span>Offer approval</span><b>→</b><span>Hired</span></div>
+  <ol>
+    <li><b>Recruiter</b> creates a vacancy (fields, skills, questions, and a pipeline from a template or the default) and publishes it. Only published jobs appear publicly and accept applications.</li>
+    <li><b>Candidate</b> signs up. Privacy consent is required and is stored with its policy version and IP address. They upload a PDF resume; the server reads it and fills in skills, phone, city, LinkedIn and headline.</li>
+    <li>The job board ranks every role by <b>skill match</b>. The candidate answers the role's questions and applies; an "application received" email goes to the sandbox inbox.</li>
+    <li><b>Recruiter</b> drags the card to Screening. The move is recorded as a stage transition and in the audit log, and a stage-update email is sent if that stage has notifications on.</li>
+    <li><b>Recruiter</b> schedules an interview with a panel. A clash with an existing interview is refused with the busy person's name. The candidate is emailed the time and place.</li>
+    <li><b>Panel members</b> submit scorecards rated 1–5 per job criterion, with a recommendation.</li>
+    <li>The recruiter moves the candidate to <b>Offer</b>, which is gated: the API answers 202 and creates a pending approval. The configured approver (hiring manager or employer) approves, the move completes, and the offer email is sent.</li>
+    <li>Moving to <b>Hired</b> closes the application. Analytics update from the stage history.</li>
+    <li>Later, the candidate can <b>export</b> all their data or request <b>deletion</b>. The employer approves, personal data is anonymized, files are deleted, and the hiring statistics stay correct.</li>
+  </ol>
+  <h3>Edge cases demonstrated</h3>
+  <table>
+    <tr><th>Edge case</th><th>Behaviour</th></tr>
+    <tr><td>Recruiter moves a candidate into an approval-gated stage</td><td>202 Accepted, card shows "Approval pending", candidate stays put until the approver decides</td></tr>
+    <tr><td>Scheduling an interviewer who is already booked</td><td>409 "Double booking: &lt;name&gt; already has an interview at that time"</td></tr>
+    <tr><td>Deleting a stage that still holds candidates</td><td>409 with the number of candidates to move first</td></tr>
+    <tr><td>Candidate opens another candidate's application or a staff page</td><td>403 Forbidden</td></tr>
+    <tr><td>Applying twice, or applying to a paused job</td><td>409 / 400 with a clear message</td></tr>
+  </table>
+</div>
+
+<!-- 6 Walkthrough -->
+<div class="section">
+  <div class="eyebrow">6 · Page-by-page walkthrough</div>
+  <h2>Public site</h2>
+  <div class="page">
+    <h3>Landing page <span class="tag">/</span></h3>
+    <img class="shot tall" src="../screenshots/01-landing.png" />
+    <p><b>Purpose:</b> the front door for first-time visitors. It explains what HireFlow is and lets each visitor choose a path: <i>Find a job</i> or <i>I'm hiring</i>.</p>
+    <p><b>What's on it:</b> a hero with a product preview, live facts computed from the open roles (count, teams, locations), "One flow, two sides" for candidates and hiring teams, a four-step "How it works", three live job cards, and a closing call to action. Sections fade in as you scroll. Signed-in users skip this page and go straight to their workspace.</p>
+  </div>
+</div>
+<div class="section">
+  <div class="page">
+    <h3>Dark theme</h3>
+    <img class="shot" src="../screenshots/02-landing-dark.png" />
+    <p>Every page supports light and dark themes through the sun/moon toggle. The choice is remembered, and first-time visitors get their device's setting. Dark mode is implemented by switching the colour variables, so all pages follow automatically. An automatic contrast check passed on 14 pages.</p>
+  </div>
+  <div class="page">
+    <h3>Job board <span class="tag">/jobs</span></h3>
+    <img class="shot" src="../screenshots/03-job-board.png" />
+    <p>All published vacancies, with keyword search, type filters and a location filter built from the live jobs. Visitors who aren't signed in see salary and role essentials and a tip inviting them to sign up to see match scores.</p>
+  </div>
+</div>
+<div class="section">
+  <div class="page">
+    <h3>Job detail &amp; application form <span class="tag">/jobs/:id</span></h3>
+    <img class="shot tall" src="../screenshots/04-job-detail.png" />
+    <p>The full description, requirements and skills. Candidates apply here: they answer the role's custom questions (all five types are supported), pick or upload a resume and choose how they heard about the role. Required answers, duplicate applications and paused jobs are all checked on the server.</p>
+  </div>
+</div>
+<div class="section">
+  <div class="page">
+    <h3>Log in &amp; sign up <span class="tag">/login · /register</span></h3>
+    <div class="pair"><img class="shot" src="../screenshots/05-login.png" /><img class="shot" src="../screenshots/06-register.png" /></div>
+    <p>A full-screen split card with an illustrated sunset-forest panel. Log in has one-click demo accounts for every role. Sign up checks that the two passwords match and requires privacy consent, with optional talent-pool consent. Both are stored as consent records with their policy version.</p>
+  </div>
+  <div class="page">
+    <h3>On a phone</h3>
+    <div class="pair" style="grid-template-columns: 1fr 1fr 2fr"><img class="shot" src="../screenshots/07-login-mobile.png" /><img class="shot" src="../screenshots/07b-landing-mobile.png" /><div><p>Every page works down to 375 px wide. On phones the auth card puts the form on top with the forest as a band along the bottom, and fits the screen exactly. The staff app's navigation moves into a slide-out menu.</p></div></div>
+  </div>
+</div>
+
+<div class="section">
+  <h2>Candidate experience</h2>
+  <div class="page">
+    <h3>Job match <span class="tag">/jobs as a candidate</span></h3>
+    <img class="shot" src="../screenshots/08-candidate-job-match.png" />
+    <p>For signed-in candidates the board becomes <b>"Your job match"</b>: every role shows a ring with the share of its required skills found on the candidate's profile, the best fits come first, and skills the candidate already has are shown as dark chips.</p>
+  </div>
+  <div class="page">
+    <h3>My applications <span class="tag">/portal</span></h3>
+    <img class="shot" src="../screenshots/09-candidate-applications.png" />
+    <p>Each application shows a candidate-friendly status (internal stage names are kept internal, and rejections read "Not selected"), a dated stage timeline, upcoming interviews with time and place, and a withdraw button.</p>
+  </div>
+</div>
+<div class="section">
+  <div class="page">
+    <h3>Profile &amp; resumes <span class="tag">/portal/profile</span></h3>
+    <img class="shot tall" src="../screenshots/10-candidate-profile.png" />
+    <p>Candidates edit only the fields they're allowed to edit; the API rejects anything else. Uploading a PDF resume runs the parser: detected skills are added and empty contact fields are filled in, without overwriting anything the candidate typed. Resumes open through 5-minute presigned links.</p>
+  </div>
+  <div class="page">
+    <h3>Privacy &amp; data <span class="tag">/portal/privacy</span></h3>
+    <img class="shot tall" src="../screenshots/11-candidate-privacy.png" />
+    <p>Candidates can grant or withdraw talent-pool and marketing consent (history is kept), download everything held about them as JSON, and request deletion. They can see each request's status as the employer processes it.</p>
+  </div>
+</div>
+
+<div class="section">
+  <h2>Hiring team</h2>
+  <div class="page">
+    <h3>Dashboard: hiring pulse <span class="tag">/dashboard</span></h3>
+    <img class="shot" src="../screenshots/12-dashboard.png" />
+    <p>Three nested half-discs show applied → interviewed → hired, sized by area. Panels on the right open to show talent overview, sources and vacancy status. Below, a vacancy filter and swipeable stage cards show, for each stage, the share of candidates who reached it, the average days to get there, and how many haven't yet. Hiring managers see only their own vacancies.</p>
+  </div>
+  <div class="page">
+    <div class="pair"><img class="shot" src="../screenshots/13-dashboard-dark.png" /><img class="shot" src="../screenshots/14-vacancies.png" /></div>
+    <p class="caption">Left: the dashboard in dark mode. Right: the vacancies list.</p>
+    <h3>Vacancies <span class="tag">/jobs-admin</span></h3>
+    <p>Every vacancy with its status and applicant count. Status buttons show only the legal next states (for example, a closed job can't be republished), and each row links to its pipeline and workflow editor.</p>
+  </div>
+</div>
+<div class="section">
+  <div class="page">
+    <h3>Creating a job</h3>
+    <img class="shot" src="../screenshots/15-job-editor.png" />
+    <p>Title, department, location, employment type, hiring manager, salary range (min ≤ max is validated), description, requirements, skills, custom application questions, and a pipeline template. New jobs start as drafts.</p>
+  </div>
+  <div class="page">
+    <h3>Pipeline Kanban <span class="tag">/jobs-admin/:id/pipeline</span></h3>
+    <img class="shot" src="../screenshots/16-kanban.png" />
+    <p>One column per stage of <i>this</i> vacancy. Cards show the candidate, their source, a skill-match ring and badges (interviews, approval pending), sorted best match first. Drag-and-drop or "Move to…" calls the pipeline engine; gated stages answer "Sent for approval".</p>
+  </div>
+</div>
+<div class="section">
+  <div class="page">
+    <h3>Workflow editor ⭐ <span class="tag">/jobs-admin/:id/workflow</span></h3>
+    <img class="shot tall" src="../screenshots/17-workflow-editor.png" />
+    <p>The first USP. Recruiters rename, reorder, add and remove stages; set each stage's category (active, hired or rejected); choose whether entering it emails the candidate and with which template; and set whether it needs approval and from which role. Scorecard criteria are edited here too, and any pipeline can be saved as a reusable template. Safety rules are enforced by the API: a rejected stage is required, names must be unique, and a stage that still holds candidates can't be deleted.</p>
+  </div>
+</div>
+<div class="section">
+  <div class="page">
+    <h3>Candidate detail <span class="tag">/applications/:id</span></h3>
+    <img class="shot tall" src="../screenshots/18-candidate-detail.png" />
+    <p>Everything about one application: profile and resume (each view is audited), answers, interviews with panels and scorecards (with an average per criterion), internal notes, approvals, the complete stage history with who moved the candidate and when, and the email log. From here recruiters can move or reject the candidate, schedule an interview or send a templated email.</p>
+  </div>
+</div>
+<div class="section">
+  <div class="page">
+    <h3>My interviews &amp; scorecards <span class="tag">/interviews</span></h3>
+    <img class="shot" src="../screenshots/19-interviews.png" />
+    <p>Each interviewer's queue. Candidate email and phone are masked (role-limited access). Scorecards require a 1–5 rating for every criterion of the job plus a recommendation, and only assigned panel members can submit them.</p>
+  </div>
+  <div class="page">
+    <h3>Approvals <span class="tag">/approvals</span></h3>
+    <img class="shot" src="../screenshots/20-approvals.png" />
+    <p>Pending stage moves that need a sign-off. The employer can approve anything; otherwise only the configured approver role can (and a hiring manager only on their own jobs). Approving completes the move and sends the stage's email; denying leaves the candidate where they are.</p>
+  </div>
+</div>
+<div class="section">
+  <div class="page">
+    <h3>Email templates &amp; log <span class="tag">/templates</span></h3>
+    <img class="shot" src="../screenshots/21-email-templates.png" />
+    <p>Editable templates with placeholders such as <code>{{candidateName}}</code>, <code>{{jobTitle}}</code> and <code>{{interviewDate}}</code>. Placeholder values are HTML-escaped. Every send is logged as queued, then sent or failed, and all mail lands in the Mailpit sandbox, never in a real inbox.</p>
+  </div>
+  <div class="page">
+    <h3>Audit log <span class="tag">/audit</span></h3>
+    <img class="shot" src="../screenshots/22-audit-log.png" />
+    <p>An append-only record of every write: who did it, in which role, what changed (before/after), on which record, from which IP and when. It's filterable by entity and action and paginated.</p>
+  </div>
+</div>
+<div class="section">
+  <div class="page">
+    <h3>Data governance ⭐ <span class="tag">/governance</span></h3>
+    <img class="shot" src="../screenshots/23-governance.png" />
+    <p>The second USP. The employer sets the retention period, can run the retention sweep on demand (it also runs nightly), and reviews deletion requests. Approving a request anonymizes the candidate: name and email are replaced, contact fields cleared, answers and notes deleted, resume files removed from storage. Application rows and stage history are kept, so analytics remain correct.</p>
+  </div>
+  <div class="page">
+    <h3>Team <span class="tag">/users</span></h3>
+    <div class="pair" style="grid-template-columns: 2fr 1fr"><img class="shot" src="../screenshots/24-team.png" /><img class="shot" src="../screenshots/12b-dashboard-mobile.png" /></div>
+    <p>The employer creates staff accounts, changes roles and deactivates people; deactivated users can no longer log in. Right: the dashboard on a phone.</p>
+  </div>
+</div>
+<div class="section">
+  <div class="page">
+    <h3>API documentation <span class="tag">:4000/api/docs</span></h3>
+    <img class="shot" src="../screenshots/25-api-docs.png" />
+    <p>An OpenAPI 3 specification for all 62 operations, served by Swagger UI, with request schemas, the roles allowed per endpoint, error formats and examples (including the 202 approval-pending and 409 double-booking responses). A human-readable version with curl examples is in <code>docs/API.md</code>.</p>
+  </div>
+</div>
+
+<!-- 7 -->
+<div class="section">
+  <div class="eyebrow">7 · USPs in depth</div>
+  <h2>Configurable hiring workflow</h2>
+  <ul>
+    <li>Every vacancy owns its ordered <code>JobStage</code> rows: name, order, category, notify flag, email template, requires-approval flag and approver role.</li>
+    <li>Edits are diffed against the current stages inside a transaction. Stages still holding candidates can't be removed, and the rules (a rejected stage, unique names, an approver for every gate) are validated.</li>
+    <li>The pipeline engine reads these rows at run time, so a new process (for example "Online Test → Tech Interview → Employer-approved Offer" for internships) needs no code.</li>
+    <li>Pipelines can be saved as templates and chosen when creating a job.</li>
+  </ul>
+  <h2 style="margin-top:6mm">Candidate data governance</h2>
+  <ul>
+    <li><b>Consent:</b> data-processing consent at sign-up, per-application consent, and optional talent-pool and marketing consent, each with policy version, IP and timestamp; withdrawals are kept in the history.</li>
+    <li><b>Role-limited access:</b> interviewers see masked contact details, hiring managers see only their jobs, and every staff resume view is audited.</li>
+    <li><b>Retention:</b> candidates whose every application in the organisation is rejected or withdrawn and older than the retention period are anonymized automatically.</li>
+    <li><b>Export &amp; deletion:</b> self-service JSON export, and deletion requests with employer review, as described on the governance page.</li>
+  </ul>
+</div>
+
+<!-- 8 + 9 -->
+<div class="section">
+  <div class="eyebrow">8 · Data model</div>
+  <h2>21 models, built for traceability</h2>
+  <table>
+    <tr><th>Group</th><th>Models</th><th>Key rules</th></tr>
+    <tr><td>Identity</td><td>Organization, User, CandidateProfile, Resume, Consent</td><td>Unique email; profile 1:1 with user; cascade on delete</td></tr>
+    <tr><td>Jobs</td><td>Job, JobQuestion, JobStage, ScorecardCriterion, PipelineTemplate</td><td>Index on (org, status) and (job, order)</td></tr>
+    <tr><td>Pipeline</td><td>Application, ApplicationAnswer, StageTransition, StageApproval, Note</td><td>Unique (job, candidate); index on (job, current stage); append-only transitions</td></tr>
+    <tr><td>Interviews</td><td>Interview, InterviewPanel, Scorecard</td><td>One scorecard per interviewer per interview</td></tr>
+    <tr><td>Comms &amp; audit</td><td>EmailTemplate, EmailLog, Notification, AuditLog, DataRequest</td><td>Unique (org, template key); audit indexed by entity and time</td></tr>
+  </table>
+  <p class="muted">Full ER diagram, constraints and indexes: docs/DATABASE.md.</p>
+
+  <div class="eyebrow" style="margin-top:6mm">9 · Resume parsing &amp; real-resume demo data</div>
+  <h2>Reading resumes on the server</h2>
+  <p>PDF text is extracted with <code>unpdf</code>. Heuristics then find the email, phone, LinkedIn URL, city and headline, and match against a list of about 40 skills to produce canonical skill tags that line up with job requirements. Nothing is sent to an outside service.</p>
+  <p>A bulk importer and a resume-based seed mode turned a batch of 26 real student resumes into candidates: each was parsed, stored, applied to the best-fitting open role, and placed in that role's pipeline by skill match (hired, offer awaiting approval, interviewing with scorecards, assessment, rejected). 24 of 26 parsed fully; 2 scanned PDFs without a text layer were imported with name and file only. The real resumes are gitignored and never published; all screenshots in this report use generated demo data.</p>
+</div>
+
+<!-- 10 + 11 -->
+<div class="section">
+  <div class="eyebrow">10 · Security considerations</div>
+  <h2>Defence in depth</h2>
+  <ul>
+    <li><b>Authentication:</b> bcrypt hashes; JWT in an httpOnly, SameSite=Lax cookie with 8-hour expiry; login rate-limited; deactivated users rejected.</li>
+    <li><b>Authorization:</b> role middleware plus resource checks in one module; hiring-manager scope applied inside SQL; tests prove the 403s.</li>
+    <li><b>Input:</b> Zod on every body and query; strict candidate profile schema; validation errors returned as 400s with per-field details.</li>
+    <li><b>Files:</b> MIME allow-list and 5 MB limit; private bucket; 5-minute presigned reads; resume views audited.</li>
+    <li><b>Transport &amp; headers:</b> helmet, CORS allow-list, 1 MB JSON limit.</li>
+    <li><b>Data:</b> HTML-escaped email templates, masked PII for interviewers, anonymization on deletion, no secrets in Git.</li>
+  </ul>
+
+  <div class="eyebrow" style="margin-top:6mm">11 · Testing &amp; results</div>
+  <h2>74 automated tests, all passing</h2>
+  <table>
+    <tr><th>Suite</th><th>Tests</th><th>Covers</th></tr>
+    <tr><td>Backend unit</td><td>25</td><td>Job status rules, access rules, PII masking, stage validation, approvals, interview overlap, template escaping</td></tr>
+    <tr><td>Auth &amp; RBAC</td><td>11</td><td>Register / login / logout, 401s, 403s, IDOR, inactive users</td></tr>
+    <tr><td>Jobs &amp; validation</td><td>8</td><td>Salary rules, required answers, strict profile, status machine, duplicate and paused applications</td></tr>
+    <tr><td>Pipeline &amp; workflow</td><td>10</td><td>Moves, cross-job guard, approval gate (202), deny, reject, stage CRUD rules, audit row</td></tr>
+    <tr><td>Interviews</td><td>7</td><td>Scheduling, past date, double-booking 409, scorecard permissions and validation, PII masking</td></tr>
+    <tr><td>Governance &amp; uploads</td><td>6</td><td>Export, deletion approve/reject, retention, audit access, PDF/TXT upload</td></tr>
+    <tr><td>Frontend</td><td>7</td><td>API client errors and status codes, role guards, status transitions</td></tr>
+  </table>
+  <p>Integration tests run the real Express app against a separate PostgreSQL test database, which is wiped and re-seeded before every test, with real S3 storage and SMTP. Backend line coverage is 74%. GitHub Actions runs type checks and both suites on every push.</p>
+</div>
+
+<!-- 12 + 13 -->
+<div class="section">
+  <div class="eyebrow">12 · Limitations &amp; future enhancements</div>
+  <h2>What's next</h2>
+  <table>
+    <tr><th>Limitation today</th><th>Planned improvement</th></tr>
+    <tr><td>Email is sent without a retry queue</td><td>Move to a job queue (e.g. BullMQ) with retries and delivery webhooks</td></tr>
+    <tr><td>8-hour session without refresh tokens</td><td>Rotating refresh tokens and session revocation</td></tr>
+    <tr><td>Skill extraction is keyword-based; scanned PDFs need OCR</td><td>OCR for image-only resumes; semantic matching with embeddings</td></tr>
+    <tr><td>No calendar integration</td><td>Google / Outlook calendar sync and candidate self-scheduling</td></tr>
+    <tr><td>Org-wide funnel groups stages by name</td><td>Normalised stage categories for cross-pipeline analytics</td></tr>
+    <tr><td>No browser end-to-end test suite</td><td>Playwright journeys for the main flows</td></tr>
+    <tr><td>Single organisation in practice</td><td>Full multi-tenant isolation, SSO, billing</td></tr>
+  </table>
+
+  <div class="eyebrow" style="margin-top:6mm">13 · Running the project</div>
+  <h2>Setup in three commands</h2>
+  <p><code>docker compose up -d db storage mailpit</code></p>
+  <p><code>cd backend &amp;&amp; cp .env.example .env &amp;&amp; npm install &amp;&amp; npx prisma migrate deploy &amp;&amp; npm run db:seed &amp;&amp; npm run dev</code></p>
+  <p><code>cd frontend &amp;&amp; npm install &amp;&amp; npm run dev</code></p>
+  <table>
+    <tr><th>Address</th><th>What</th></tr>
+    <tr><td>http://localhost:5173</td><td>Web app</td></tr>
+    <tr><td>http://localhost:4000/api/docs</td><td>Swagger API docs</td></tr>
+    <tr><td>http://localhost:8025</td><td>Mailpit sandbox inbox</td></tr>
+  </table>
+  <p>Demo logins (password <code>Password123!</code>): employer@acme.test · recruiter@acme.test · manager@acme.test · candidate@acme.test</p>
+  <p class="muted" style="margin-top:8mm">Source, documentation and this report: github.com/christhecreator56/hireflow</p>
+</div>
+
+</body>
+</html>
