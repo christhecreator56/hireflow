@@ -6,6 +6,9 @@ import type { EmailTemplate } from '../../types';
 import { Button, Card, cx, Empty, ErrorBox, Input, Loading, PageHeader, StatusBadge, Table, Textarea } from '../../components/ui';
 import { useToast } from '../../components/toast';
 
+// Sandbox inbox link: Mailpit locally; set VITE_MAIL_SANDBOX_URL in deployments (hidden when unset).
+const SANDBOX_INBOX: string = import.meta.env.VITE_MAIL_SANDBOX_URL ?? (import.meta.env.DEV ? 'http://localhost:8025' : '');
+
 const VARS = ['candidateName', 'jobTitle', 'stageName', 'companyName', 'interviewDate', 'interviewTitle', 'location', 'durationMin'];
 type EmailLog = { id: string; toEmail: string; templateKey: string | null; subject: string; status: string; error: string | null; createdAt: string };
 const blank = { key: '', name: '', subject: '', bodyHtml: '' };
@@ -52,9 +55,11 @@ export function Templates() {
         title="Email templates"
         subtitle="Handlebars templates used by stage notifications and manual emails."
         actions={
-          <a href="http://localhost:8025" target="_blank" rel="noreferrer" className="rounded-full bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm ring-1 ring-slate-300 hover:bg-slate-50">
-            Open Mailpit sandbox ↗
-          </a>
+          SANDBOX_INBOX && (
+            <a href={SANDBOX_INBOX} target="_blank" rel="noreferrer" className="rounded-full bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm ring-1 ring-slate-300 hover:bg-slate-50">
+              Open email sandbox ↗
+            </a>
+          )
         }
       />
       <div className="grid gap-6 lg:grid-cols-[280px_1fr]">

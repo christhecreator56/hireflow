@@ -50,3 +50,6 @@ app.use((_req, _res) => {
   throw notFound('Route');
 });
 app.use(errorHandler);
+
+// Vercel (Express framework) serves the default export as a function; local dev uses index.ts listen().
+export default app;
