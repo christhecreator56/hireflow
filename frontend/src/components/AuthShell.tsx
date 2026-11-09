@@ -126,7 +126,7 @@ export function AuthShell({ word, title, subtitle, children }: { word: string; t
         </div>
 
         {/* Phones: forest strip along the bottom with a wavy top edge. */}
-        <div className="relative h-40 shrink-0 sm:h-48 md:hidden">
+        <div className="relative h-[20dvh] max-h-48 min-h-20 shrink-0 md:hidden">
           <Scene band />
           <svg viewBox="0 0 400 40" preserveAspectRatio="none" className="absolute inset-x-0 top-0 h-8 w-full" aria-hidden>
             <path d="M0 0 H400 V12 C330 40 260 2 190 18 C120 34 60 6 0 24Z" fill="#1f1d1b" />
