@@ -6,3 +6,4 @@ coverage/
 *.log
 import/
 resumes.zip
+backend/app.mjs

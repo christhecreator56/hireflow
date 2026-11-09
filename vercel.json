@@ -3,7 +3,9 @@
   "services": {
     "backend": {
       "root": "backend",
-      "framework": "express"
+      "framework": "express",
+      "buildCommand": "npm run build:vercel",
+      "entrypoint": "app.mjs"
     },
     "frontend": {
       "root": "frontend",

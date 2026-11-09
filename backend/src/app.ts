@@ -47,8 +47,9 @@ v1.use('/reports', reports);
 v1.use('/admin', admin);
 app.use('/api/v1', v1);
 
-const spec = new URL('../openapi.json', import.meta.url);
-if (existsSync(spec)) {
+// src/app.ts (dev, tests) looks one level up; the Vercel bundle (backend/app.mjs) sits next to the file.
+const spec = [new URL('../openapi.json', import.meta.url), new URL('./openapi.json', import.meta.url)].find((u) => existsSync(u));
+if (spec) {
   app.use('/api/docs', swaggerUi.serve, swaggerUi.setup(JSON.parse(readFileSync(spec, 'utf8'))));
 }
 

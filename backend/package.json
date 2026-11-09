@@ -13,7 +13,8 @@
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
     "typecheck": "tsc --noEmit",
-    "postinstall": "prisma generate"
+    "postinstall": "prisma generate",
+    "build:vercel": "esbuild src/app.ts --bundle --platform=node --format=esm --target=node22 --packages=external --outfile=app.mjs"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
@@ -50,6 +51,7 @@
     "@types/supertest": "^7.2.1",
     "@types/swagger-ui-express": "^4.1.8",
     "@vitest/coverage-v8": "^5.1.0",
+    "esbuild": "^0.28.2",
     "prisma": "^6.19.3",
     "supertest": "^7.3.2",
     "tsx": "^4.23.15",
