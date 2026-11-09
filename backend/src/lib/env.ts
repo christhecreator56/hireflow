@@ -25,6 +25,12 @@ export const env = {
   },
 };
 
-if (!env.jwtSecret || env.jwtSecret.length < 16) {
-  throw new Error('JWT_SECRET must be set (min 16 chars)');
-}
+/**
+ * Settings the API cannot run without. Reported instead of thrown: a throw at import time
+ * crashes a serverless function on every request (FUNCTION_INVOCATION_FAILED) with no readable error.
+ */
+export const missingConfig = [
+  ...(!env.jwtSecret || env.jwtSecret.length < 16 ? ['JWT_SECRET (16+ characters)'] : []),
+  ...(!process.env.DATABASE_URL ? ['DATABASE_URL'] : []),
+];
+if (missingConfig.length) console.error(`Missing configuration: ${missingConfig.join(', ')}`);

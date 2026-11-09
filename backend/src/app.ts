@@ -5,7 +5,7 @@ import helmet from 'helmet';
 import cookieParser from 'cookie-parser';
 import swaggerUi from 'swagger-ui-express';
 import { existsSync, readFileSync } from 'node:fs';
-import { env } from './lib/env.js';
+import { env, missingConfig } from './lib/env.js';
 import { errorHandler, notFound } from './lib/http.js';
 import { router as auth } from './routes/auth.js';
 import { router as users } from './routes/users.js';
@@ -23,7 +23,13 @@ app.use(cors({ origin: env.corsOrigin, credentials: true }));
 app.use(express.json({ limit: '1mb' }));
 app.use(cookieParser());
 
-app.get('/api/health', (_req, res) => res.json({ ok: true }));
+app.get('/api/health', (_req, res) => res.status(missingConfig.length ? 503 : 200).json({ ok: !missingConfig.length, missing: missingConfig }));
+
+// Fail every API call with a clear message (not a crash) until required settings exist.
+app.use('/api', (_req, res, next) => {
+  if (!missingConfig.length) return next();
+  res.status(503).json({ error: `Server is not configured. Set ${missingConfig.join(', ')} in the deployment environment.` });
+});
 
 const v1 = express.Router();
 v1.use('/auth', auth);

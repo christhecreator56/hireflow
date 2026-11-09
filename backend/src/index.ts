@@ -1,9 +1,12 @@
 import cron from 'node-cron';
 import { app } from './app.js';
-import { env } from './lib/env.js';
+import { env, missingConfig } from './lib/env.js';
 import { prisma } from './lib/prisma.js';
 import { ensureBucket } from './lib/storage.js';
 import { runRetention } from './lib/governance.js';
+
+// Long-running local server: refuse to start half-configured.
+if (missingConfig.length) throw new Error(`Missing configuration: ${missingConfig.join(', ')}`);
 
 await ensureBucket().catch((e) => console.warn('Object storage not ready:', e.message));
 
