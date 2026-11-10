@@ -6,7 +6,7 @@ import { audit } from '../lib/audit.js';
 import { conflict, forbidden, notFound } from '../lib/http.js';
 import { canSeeJob, loadApplication } from '../lib/access.js';
 import { forbidUnlessApprover, moveApplication, notifyCandidate, rejectApplication } from '../lib/pipeline.js';
-import { signedUrl } from '../lib/storage.js';
+import { requireStorage, signedUrl } from '../lib/storage.js';
 
 export const router = Router();
 router.use(requireAuth, requireRole(...STAFF));
@@ -84,6 +84,7 @@ router.get('/resumes/:resumeId/url', async (req, res) => {
   if (!resume) throw notFound('Resume');
   if (!resume.applications.some((a) => canSeeJob(me(req), a.job))) throw forbidden();
   await audit(req, 'VIEW_RESUME', 'Resume', resume.id);
+  requireStorage();
   res.json({ url: await signedUrl(resume.fileKey, resume.fileName) });
 });
 

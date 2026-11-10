@@ -21,7 +21,9 @@ var env = {
   smtp: {
     host: process.env.SMTP_HOST ?? "localhost",
     port: Number(process.env.SMTP_PORT ?? 1025),
-    from: process.env.MAIL_FROM ?? "ATS <no-reply@ats.local>"
+    from: process.env.MAIL_FROM ?? "ATS <no-reply@ats.local>",
+    user: process.env.SMTP_USER ?? "",
+    pass: process.env.SMTP_PASS ?? ""
   }
 };
 var missingConfig = [
@@ -297,7 +299,12 @@ function maskPII(p) {
 // src/lib/mailer.ts
 import nodemailer from "nodemailer";
 import Handlebars from "handlebars";
-var transport = nodemailer.createTransport({ host: env.smtp.host, port: env.smtp.port, secure: false });
+var transport = nodemailer.createTransport({
+  host: env.smtp.host,
+  port: env.smtp.port,
+  secure: false,
+  ...env.smtp.user && { auth: { user: env.smtp.user, pass: env.smtp.pass } }
+});
 var render = (tpl, vars) => Handlebars.compile(tpl)(vars);
 async function sendTemplate(opts) {
   const t = await prisma.emailTemplate.findUnique({ where: { orgId_key: { orgId: opts.orgId, key: opts.key } } });
@@ -709,10 +716,19 @@ import {
   DeleteObjectCommand,
   GetObjectCommand,
   HeadBucketCommand,
+  HeadObjectCommand,
   PutObjectCommand,
   S3Client
 } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
+import { BlobNotFoundError, del, head, issueSignedToken, presignUrl, put } from "@vercel/blob";
+var useBlob = () => !!process.env.BLOB_READ_WRITE_TOKEN;
+var storageConfigured = () => useBlob() || !!env.s3.endpoint;
+function requireStorage() {
+  if (!storageConfigured()) {
+    throw new HttpError(503, "File storage is not configured on this server, so resumes cannot be uploaded or opened yet.");
+  }
+}
 var client = (endpoint) => new S3Client({
   endpoint,
   region: env.s3.region,
@@ -722,17 +738,35 @@ var client = (endpoint) => new S3Client({
 var s3 = client(env.s3.endpoint);
 var signer = client(env.s3.publicEndpoint);
 var Bucket = env.s3.bucket;
-var putObject = (Key, Body, ContentType) => s3.send(new PutObjectCommand({ Bucket, Key, Body, ContentType }));
-var deleteObject = (Key) => s3.send(new DeleteObjectCommand({ Bucket, Key }));
-var signedUrl = (Key, fileName) => getSignedUrl(
-  signer,
-  new GetObjectCommand({
-    Bucket,
-    Key,
-    ResponseContentDisposition: `inline; filename="${fileName.replace(/"/g, "")}"`
-  }),
-  { expiresIn: 300 }
-);
+var LINK_TTL_MS = 5 * 6e4;
+async function putObject(Key, Body, ContentType) {
+  if (useBlob()) {
+    await put(Key, Body, { access: "private", contentType: ContentType, addRandomSuffix: false, allowOverwrite: true });
+    return;
+  }
+  await s3.send(new PutObjectCommand({ Bucket, Key, Body, ContentType }));
+}
+async function deleteObject(Key) {
+  if (useBlob()) return del(Key);
+  await s3.send(new DeleteObjectCommand({ Bucket, Key }));
+}
+async function signedUrl(Key, fileName) {
+  if (useBlob()) {
+    const validUntil = Date.now() + LINK_TTL_MS;
+    const token = await issueSignedToken({ pathname: Key, operations: ["get"], validUntil });
+    const { presignedUrl } = await presignUrl(token, { operation: "get", pathname: Key, access: "private", validUntil });
+    return presignedUrl;
+  }
+  return getSignedUrl(
+    signer,
+    new GetObjectCommand({
+      Bucket,
+      Key,
+      ResponseContentDisposition: `inline; filename="${fileName.replace(/"/g, "")}"`
+    }),
+    { expiresIn: LINK_TTL_MS / 1e3 }
+  );
+}
 
 // src/lib/governance.ts
 import { randomBytes } from "node:crypto";
@@ -926,6 +960,7 @@ router4.patch("/profile", async (req, res) => {
   res.json(profile);
 });
 router4.post("/resumes", upload.single("file"), async (req, res) => {
+  requireStorage();
   if (!req.file) throw badRequest('Attach a file in the "file" field');
   const profile = await profileOf(me(req).id);
   const key = `resumes/${profile.id}/${randomUUID()}`;
@@ -1076,6 +1111,7 @@ router4.get("/resumes/:id/url", async (req, res) => {
   const profile = await profileOf(me(req).id);
   const r = await prisma.resume.findFirst({ where: { id: String(req.params.id), candidateId: profile.id } });
   if (!r) throw notFound("Resume");
+  requireStorage();
   res.json({ url: await signedUrl(r.fileKey, r.fileName) });
 });
 
@@ -1151,6 +1187,7 @@ router5.get("/resumes/:resumeId/url", async (req, res) => {
   if (!resume) throw notFound("Resume");
   if (!resume.applications.some((a) => canSeeJob(me(req), a.job))) throw forbidden();
   await audit(req, "VIEW_RESUME", "Resume", resume.id);
+  requireStorage();
   res.json({ url: await signedUrl(resume.fileKey, resume.fileName) });
 });
 var approvalsRouter = Router5();

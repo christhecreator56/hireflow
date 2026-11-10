@@ -6,7 +6,7 @@ import { prisma } from '../lib/prisma.js';
 import { me, requireAuth, requireRole } from '../lib/auth.js';
 import { audit } from '../lib/audit.js';
 import { badRequest, conflict, forbidden, notFound } from '../lib/http.js';
-import { putObject, signedUrl } from '../lib/storage.js';
+import { putObject, requireStorage, signedUrl } from '../lib/storage.js';
 import { notifyCandidate } from '../lib/pipeline.js';
 import { exportCandidateData } from '../lib/governance.js';
 import { parseResume } from '../lib/resumeParser.js';
@@ -70,6 +70,7 @@ router.patch('/profile', async (req, res) => {
 
 // ---------- Resumes ----------
 router.post('/resumes', upload.single('file'), async (req, res) => {
+  requireStorage();
   if (!req.file) throw badRequest('Attach a file in the "file" field');
   const profile = await profileOf(me(req).id);
   const key = `resumes/${profile.id}/${randomUUID()}`;
@@ -241,5 +242,6 @@ router.get('/resumes/:id/url', async (req, res) => {
   const profile = await profileOf(me(req).id);
   const r = await prisma.resume.findFirst({ where: { id: String(req.params.id), candidateId: profile.id } });
   if (!r) throw notFound('Resume');
+  requireStorage();
   res.json({ url: await signedUrl(r.fileKey, r.fileName) });
 });

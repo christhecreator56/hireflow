@@ -22,6 +22,8 @@ export const env = {
     host: process.env.SMTP_HOST ?? 'localhost',
     port: Number(process.env.SMTP_PORT ?? 1025),
     from: process.env.MAIL_FROM ?? 'ATS <no-reply@ats.local>',
+    user: process.env.SMTP_USER ?? '',
+    pass: process.env.SMTP_PASS ?? '',
   },
 };
 

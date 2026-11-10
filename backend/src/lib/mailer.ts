@@ -3,7 +3,13 @@ import Handlebars from 'handlebars';
 import { env } from './env.js';
 import { prisma } from './prisma.js';
 
-const transport = nodemailer.createTransport({ host: env.smtp.host, port: env.smtp.port, secure: false });
+// Mailpit (local) needs no login; hosted sandboxes such as Mailtrap use SMTP_USER / SMTP_PASS.
+const transport = nodemailer.createTransport({
+  host: env.smtp.host,
+  port: env.smtp.port,
+  secure: false,
+  ...(env.smtp.user && { auth: { user: env.smtp.user, pass: env.smtp.pass } }),
+});
 
 export type MailVars = Record<string, string | number | undefined>;
 
