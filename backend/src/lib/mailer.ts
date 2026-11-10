@@ -1,4 +1,5 @@
 import nodemailer from 'nodemailer';
+import { waitUntil } from '@vercel/functions';
 import Handlebars from 'handlebars';
 import { env } from './env.js';
 import { prisma } from './prisma.js';
@@ -33,12 +34,15 @@ export async function sendTemplate(opts: {
   const log = await prisma.emailLog.create({
     data: { orgId: opts.orgId, toEmail: opts.to, templateKey: opts.key, subject, status: 'QUEUED', applicationId: opts.applicationId },
   });
-  transport
+  const delivery = transport
     .sendMail({ from: env.smtp.from, to: opts.to, subject, html })
     .then(() => prisma.emailLog.update({ where: { id: log.id }, data: { status: 'SENT' } }))
     .catch((e: Error) =>
       prisma.emailLog.update({ where: { id: log.id }, data: { status: 'FAILED', error: e.message } }),
     )
     .catch(() => {});
+  // On Vercel the function is frozen once the response is sent; waitUntil keeps it alive until delivery
+  // finishes (no-op elsewhere, where the background promise simply runs).
+  waitUntil(delivery);
   return log;
 }

@@ -298,6 +298,7 @@ function maskPII(p) {
 
 // src/lib/mailer.ts
 import nodemailer from "nodemailer";
+import { waitUntil } from "@vercel/functions";
 import Handlebars from "handlebars";
 var transport = nodemailer.createTransport({
   host: env.smtp.host,
@@ -314,10 +315,11 @@ async function sendTemplate(opts) {
   const log = await prisma.emailLog.create({
     data: { orgId: opts.orgId, toEmail: opts.to, templateKey: opts.key, subject, status: "QUEUED", applicationId: opts.applicationId }
   });
-  transport.sendMail({ from: env.smtp.from, to: opts.to, subject, html }).then(() => prisma.emailLog.update({ where: { id: log.id }, data: { status: "SENT" } })).catch(
+  const delivery = transport.sendMail({ from: env.smtp.from, to: opts.to, subject, html }).then(() => prisma.emailLog.update({ where: { id: log.id }, data: { status: "SENT" } })).catch(
     (e) => prisma.emailLog.update({ where: { id: log.id }, data: { status: "FAILED", error: e.message } })
   ).catch(() => {
   });
+  waitUntil(delivery);
   return log;
 }
 
