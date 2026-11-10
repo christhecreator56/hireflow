@@ -4,7 +4,7 @@
     "backend": {
       "root": "backend",
       "framework": "express",
-      "buildCommand": "if [ -n \"$DATABASE_URL\" ]; then DATABASE_URL=\"${DATABASE_URL_UNPOOLED:-$DATABASE_URL}\" npx prisma migrate deploy; fi && npm run build:vercel",
+      "buildCommand": "if [ -n \"$DATABASE_URL\" ]; then export DATABASE_URL=\"${DATABASE_URL_UNPOOLED:-$DATABASE_URL}\"; npx prisma migrate deploy && npx tsx prisma/seed-if-empty.ts; fi && npm run build:vercel",
       "entrypoint": "app.mjs"
     },
     "frontend": {

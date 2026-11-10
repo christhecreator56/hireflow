@@ -70,7 +70,10 @@ async function main() {
     prisma.job.deleteMany(), prisma.pipelineTemplate.deleteMany(), prisma.emailTemplate.deleteMany(),
     prisma.user.deleteMany(), prisma.organization.deleteMany(),
   ]);
-  await ensureBucket();
+  // No object storage configured (e.g. a first cloud deploy): seed everything except the resume files.
+  const hasStorage = !!process.env.S3_ENDPOINT;
+  if (hasStorage) await ensureBucket();
+  else console.warn('S3_ENDPOINT not set: demo resume files are not uploaded');
   const hash = await bcrypt.hash(DEMO_PASSWORD, 10);
 
   const org = await prisma.organization.create({ data: { name: 'Acme Technologies', retentionDays: 180 } });
@@ -184,7 +187,7 @@ async function main() {
       include: { profile: true },
     });
     const key = `resumes/${user.profile!.id}/seed.pdf`;
-    await putObject(key, fakeResumePdf(name, skills), 'application/pdf');
+    if (hasStorage) await putObject(key, fakeResumePdf(name, skills), 'application/pdf');
     const resume = await prisma.resume.create({
       data: { candidateId: user.profile!.id, fileKey: key, fileName: `${name.replace(' ', '_')}_Resume.pdf`, mimeType: 'application/pdf', size: 900 },
     });
