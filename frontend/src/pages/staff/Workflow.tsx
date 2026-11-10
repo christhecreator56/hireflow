@@ -33,6 +33,16 @@ export function Workflow() {
   const [criteriaError, setCriteriaError] = useState<unknown>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [tplOpen, setTplOpen] = useState(false);
+  const [focusAt, setFocusAt] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (focusAt === null) return;
+    const input = document.querySelector<HTMLInputElement>(`[data-stage-index="${focusAt}"]`);
+    input?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    input?.focus({ preventScroll: true });
+    input?.select();
+    setFocusAt(null);
+  }, [focusAt]);
 
   useEffect(() => {
     if (!job.data) return;
@@ -44,6 +54,18 @@ export function Workflow() {
   if (job.error || !job.data) return <ErrorBox error={job.error} />;
 
   const update = (i: number, patch: Partial<Stage>) => setStages(stages.map((s, j) => (j === i ? { ...s, ...patch } : s)));
+
+  // New stages go before the closing Hired/Rejected stages (not below them, off-screen), then get focus.
+  const addStage = () => {
+    const firstClosing = stages.findIndex((s) => s.category !== 'ACTIVE');
+    const at = firstClosing === -1 ? stages.length : firstClosing;
+    const taken = new Set(stages.map((s) => s.name.trim().toLowerCase()));
+    let n = 1;
+    while (taken.has(`new stage ${n}`)) n++;
+    const stage: Stage = { name: `New stage ${n}`, category: 'ACTIVE', notifyCandidate: false, emailTemplateKey: null, requiresApproval: false, approverRole: null };
+    setStages([...stages.slice(0, at), stage, ...stages.slice(at)]);
+    setFocusAt(at);
+  };
   const dirty = JSON.stringify(toPayload(stages)) !== JSON.stringify(toPayload(job.data.stages ?? []));
 
   const saveStages = async () => {
@@ -90,7 +112,7 @@ export function Workflow() {
           title="Stages"
           actions={
             <>
-              <Button size="sm" variant="secondary" onClick={() => setStages([...stages, { name: `New stage ${stages.length + 1}`, category: 'ACTIVE', notifyCandidate: false, emailTemplateKey: null, requiresApproval: false, approverRole: null }])}>
+              <Button size="sm" variant="secondary" onClick={addStage}>
                 + Add stage
               </Button>
               <Button size="sm" loading={busy === 'stages'} disabled={!dirty} onClick={saveStages}>Save workflow</Button>
@@ -114,7 +136,7 @@ export function Workflow() {
                   <div className="flex flex-wrap items-end gap-3">
                     <span className="grid size-7 shrink-0 place-items-center rounded-full bg-white text-xs font-semibold text-slate-500 ring-1 ring-slate-200">{i + 1}</span>
                     <div className="min-w-40 flex-1">
-                      <Input aria-label="Stage name" value={s.name} onChange={(e) => update(i, { name: e.target.value })} />
+                      <Input aria-label="Stage name" data-stage-index={i} value={s.name} onChange={(e) => update(i, { name: e.target.value })} />
                     </div>
                     <div className="w-36">
                       <Select aria-label="Category" value={s.category} onChange={(e) => update(i, { category: e.target.value as StageCategory })}>
